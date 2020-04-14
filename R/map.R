@@ -1,0 +1,229 @@
+# geocoding GP surgery postcodes ------------------------------------------
+
+# library(conflicted)
+library(here)
+# library(tidyverse)
+# conflict_prefer("filter", "dplyr")
+# library(janitor)
+# library(sf)
+# library(tmap)
+
+
+# get NHS surgery data - 5y age brackets ----------------------------------
+
+
+## download and importcsv from NHS Digital website
+## https://digital.nhs.uk/data-and-information/publications/statistical/patients-registered-at-a-gp-practice/march-2020
+
+nhs_csv_url <- "https://files.digital.nhs.uk/90/E7CC92/gp-reg-pat-prac-quin-age.csv"
+nhs_csv <- here("data/surgery_data_raw.csv")
+# download.file(nhs_csv_url, nhs_csv)
+
+# col_types was needed to be set because empty org_type cells confused readr
+surgery_data_raw <- readr::read_csv(nhs_csv, col_types = "cccccccci")
+
+## tidy up raw data
+surgery_data2 <- surgery_data_raw %>%
+  clean_names %>%
+  filter(org_type == "GP") %>%          # only show GPs (not STP/CCG data)
+  select(-c(1:3,5))                     # only keep some columns
+
+
+
+# get postcode data -------------------------------------------------------
+
+## download and import postcode/COA lookup from ONS OpenGeography
+# from https://geoportal.statistics.gov.uk/datasets/postcode-to-output-area-hierarchy-with-classifications-february-2020-lookup-in-the-uk
+# ons_nspcl_feb20_url <- "https://www.arcgis.com/sharing/rest/content/items/b9f02f5935be45f6ad1b6405b0d43f72/data"
+ons_pc_zip <- here("data/tmp/ons_postcode_data.zip")
+
+# important to set mode = "wb" here because the url does not end in `.zip`
+# so R does not know it's a binary file (normally sets "wb" automatically for
+# URLs that end in `.zip`)
+# download.file(ons_nspcl_feb20_url, ons_pc_zip, mode = "wb")
+ons_nspcl_file <- unzip(ons_pc_zip, list = TRUE) %>% pull(Name)
+# unzip(ons_pc_zip, exdir = here("data/tmp"))
+
+ons_nspcl_data <- read_csv(here("data/tmp/", ons_nspcl_file), col_types = "ccciiiiicc????????????ccc")
+
+
+## join postcode data to NHS data
+surgery_data <- ons_nspcl_data %>%
+  select(3, "easting" = oseast1m, "northing" = osnrth1m, 22) %>%
+  inner_join(surgery_data2, by = c("pcds" = "postcode")) %>%
+  rename("postcode" = pcds, "practice_code" = org_code)
+
+
+# get patient online data (POMI) ------------------------------------------
+
+
+# https://digital.nhs.uk/data-and-information/data-collections-and-data-sets/data-collections/pomi
+pomi_url <- "https://digital.nhs.uk/binaries/content/assets/website-assets/data-and-information/data-collections/pomi/pomi_1920.zip"
+pomi_zip <- here("data/pomi_1920.zip")
+
+# download.file(pomi_url, pomi_zip)
+
+pomi_file <- unzip(pomi_zip, list = TRUE) %>% pull(Name)
+# unzip(pomi_zip, exdir = here("data"))
+
+pomi_data_raw <- read_csv(here("data", pomi_file))
+pomi_data <- pomi_data_raw %>%
+  filter(report_period_end == tail(.$report_period_end, 1)) %>%
+  select(ccg_code, ccg_name, practice_code, practice_name, field, value) %>%
+  pivot_wider(names_from = "field", values_from = "value") %>%
+  clean_names() %>%
+  mutate_at(vars(practice_name), ~ str_to_title(.))
+
+
+# over65_groups <- c("65_69", "70_74", "75_79", "80_84", "85_89", "90_94", "95+")
+# over70_groups <- c("70_74", "75_79", "80_84", "85_89", "90_94", "95+")
+# over75_groups <- c("75_79", "80_84", "85_89", "90_94", "95+")
+# over80_groups <- c("80_84", "85_89", "90_94", "95+")
+
+older_age_groups <- surgery_data %>%
+  pull(age_group_5) %>%
+  unique %>%
+  tail(7)
+
+
+full_data <- surgery_data %>%
+  filter(sex == "ALL") %>%
+  select(1:5, total_patients = 8) %>%
+  left_join(
+    surgery_data %>%
+      filter(age_group_5 %in% older_age_groups) %>%
+      pivot_wider(names_from = age_group_5,
+                  names_prefix = "patients_",
+                  values_from = number_of_patients) %>%
+      clean_names() %>%
+      group_by(practice_code) %>%
+      summarise_at(vars(starts_with("patients")), ~ sum(.)) %>%
+      ungroup()
+  ) %>%
+  mutate(older_popn_wtd = round(
+    (patients_65_69*0.55) +
+      (patients_70_74) +
+      (patients_75_79*1.1) +
+      (patients_80_84*1.2) +
+      ((patients_85_89+patients_90_94+patients_95)*1.35))) %>%
+  # mutate(older_popn_score = round(older_popn_wtd/max(older_popn_wtd), 3)) %>%
+  mutate(older_popn_quintile = ntile(older_popn_wtd, 5)) %>%
+  mutate_at(vars(older_popn_quintile), ~ as_factor(.)) %>%
+  left_join(pomi_data %>%
+              mutate_at(vars(total_pat_enbld),
+                        ~ if_else(total_pat_enbld > patient_list_size, patient_list_size, total_pat_enbld))) %>%
+  mutate(offline_patients = patient_list_size - total_pat_enbld) %>%
+  mutate(offline_pat_pct = round(offline_patients*100/patient_list_size, 2)) %>%
+  select(5,18,4,1:3,16:17, everything())
+
+  # mutate(over65_pctrank = rank(over65_pct, ties.method = "max")) %>%
+  # mutate(patient_number_rank = rank(number_of_patients, ties.method = "max")) %>%
+  # mutate(combined_over65_rank = over65_pctrank+patient_number_rank) %>%
+  # mutate(combined_rank_quintile = ntile(desc(combined_over65_rank), 5)) %>%
+  # mutate_at(vars(combined_rank_quintile), ~ forcats::as_factor(.))
+
+glimpse(full_data)
+
+saveRDS(full_data, here("full_data.Rds"))
+write_csv(full_data, here("full_data_gpsurgeries.csv"))
+
+# full_data <- read_csv(here("full_data_gpsurgeries.csv"))
+
+# ukgrid <- "+init=epsg:27700"
+# opensm <- "+init=epsg:3857"
+# latlon = "+init=epsg:4326"
+
+# the `sp` way
+# full_data_sp <- full_data %>%
+#   select(easting, northing) %>%
+#   sf::sf_project(pts = ., from = ukgrid, to = latlon) %>%
+#   sf::st_set_crs(4326) %>%
+#   sp::SpatialPointsDataFrame(data = full_data, proj4string = sp::CRS(ukgrid)) %>%
+#   sp::spTransform(sp::CRS(opensm))
+
+# the `sf` way
+full_data_sf <- full_data %>%
+  sf::st_as_sf(coords = c("easting", "northing"), crs = 27700) %>%
+  sf::st_transform(crs = 4326)
+
+saveRDS(full_data_sf, here("full_data_sf.Rds"))
+
+
+tmap_mode("view")
+# tm_basemap("OpenStreetMap") +
+# tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 1,], name = "Quintile1") +
+#   tm_dots(col = "#000004",
+#           size = "offline_pat_pct") +
+#   tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 2,], name = "Quintile2") +
+#   tm_dots(col = "#51127C",
+#           size = "offline_pat_pct") +
+#   tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 3,], name = "Quintile3") +
+#   tm_dots(col = "#B63679",
+#           size = "offline_pat_pct") +
+#   tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 4,], name = "Quintile4") +
+#   tm_dots(col = "#FB8861",
+#           size = "offline_pat_pct") +
+#   tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 5,], name = "Quintile5") +
+#   tm_dots(col = "#FCFDBF",
+#           size = "offline_pat_pct")
+
+# tm_basemap("OpenStreetMap") +
+#   tm_shape(full_data_sf %>%
+#              filter(offline_pat_pct < 75), name = "GP Surgeries in England (< 75% not using online services)") +
+#   tm_symbols(title.col = "Patients aged 65+ (weighted): quintile",
+#              col = "older_popn_quintile",
+#              border.col = "grey75",
+#              border.lwd = 20,
+#              popup.vars = c("practice_name", "postcode", "total_patients", "offline_pat_pct"),
+#              scale = 0.05,
+#              palette = "-viridis",
+#              n = 5,
+#              alpha = 0.8,
+#              border.alpha = 1,
+#              jitter = 0.01) +
+#   tm_shape(full_data_sf %>%
+#            filter(offline_pat_pct >= 75), name = "GP Surgeries in England (> 75% not using online services)") +
+#   tm_symbols(title.col = "Patients aged 65+ (weighted): quintile",
+#              col = "older_popn_quintile",
+#              border.col = "brown2",
+#              border.lwd = 20,
+#              popup.vars = c("practice_name", "postcode", "total_patients", "offline_pat_pct"),
+#              scale = 0.05,
+#              palette = "-viridis",
+#              n = 5,
+#              alpha = 1,
+#              border.alpha = 1,
+#              jitter = 0.01)
+
+
+tm_basemap("OpenStreetMap") +
+  tm_shape(full_data_sf %>%
+             filter(offline_pat_pct < 70), name = "GP Surgeries in England (>30% using GP online services)") +
+  tm_bubbles(size = "total_patients",
+             col = "older_popn_quintile",
+             title.col = "Number of patients aged 65+<br>(quintile: 5 = most)",
+             palette = "-viridis",
+             border.col = "deeppink2",
+             border.alpha = 1,
+             border.lwd = 10,
+             scale = 0.05,
+             alpha = 0.8,
+             # jitter = 0.01,
+             # legend.col.show = FALSE,
+             id = "practice_name",
+             popup.vars = c(" " = "postcode", "Patients" = "total_patients", "% 'offline'" = "offline_pat_pct")) +
+  tm_shape(full_data_sf %>%
+             filter(offline_pat_pct >= 70), name = "GP Surgeries in England (<30% using GP online services)") +
+  tm_bubbles(size = "total_patients",
+             col = "older_popn_quintile",
+             title.col = "Number of patients aged 65+<br>(quintile: 5 = most)",
+             palette = "-viridis",
+             border.col = "orangered2",
+             border.alpha = 1,
+             border.lwd = 10,
+             scale = 0.05,
+             alpha = 0.8,
+             # jitter = 0.01,
+             # legend.col.show = FALSE,
+             id = "practice_name",
+             popup.vars = c(" " = "postcode", "Patients" = "total_patients", "% 'offline'" = "offline_pat_pct"))
