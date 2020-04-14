@@ -1,6 +1,8 @@
 ---
 title: "CO NHSE GP DE map"
 output: html_document
+keep_md: true
+mainfont: Source Sans Pro
 ---
 
 ```{r setup, include=FALSE}
