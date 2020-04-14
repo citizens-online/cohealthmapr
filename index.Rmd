@@ -1,0 +1,97 @@
+---
+title: "CO NHSE GP DE map"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(tmap))
+```
+
+```{r warning=FALSE, echo = FALSE, out.width="100%"}
+
+suppressMessages(tmap_mode("view"))
+
+# tm_basemap("OpenStreetMap") +
+# tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 1,], name = "Quintile1") +
+#   tm_dots(col = "#000004",
+#           size = "offline_pat_pct") +
+#   tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 2,], name = "Quintile2") +
+#   tm_dots(col = "#51127C",
+#           size = "offline_pat_pct") +
+#   tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 3,], name = "Quintile3") +
+#   tm_dots(col = "#B63679",
+#           size = "offline_pat_pct") +
+#   tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 4,], name = "Quintile4") +
+#   tm_dots(col = "#FB8861",
+#           size = "offline_pat_pct") +
+#   tm_shape(full_data_sf[full_data_sf$combined_rank_quintile == 5,], name = "Quintile5") +
+#   tm_dots(col = "#FCFDBF",
+#           size = "offline_pat_pct")
+
+# tm_basemap("OpenStreetMap") +
+#   tm_shape(full_data_sf %>%
+#              filter(offline_pat_pct < 75), name = "GP Surgeries in England (< 75% not using online services)") +
+#   tm_symbols(title.col = "Patients aged 65+ (weighted): quintile",
+#              col = "older_popn_quintile",
+#              border.col = "grey75",
+#              border.lwd = 20,
+#              popup.vars = c("practice_name", "postcode", "total_patients", "offline_pat_pct"),
+#              scale = 0.05,
+#              palette = "-viridis",
+#              n = 5,
+#              alpha = 0.8,
+#              border.alpha = 1,
+#              jitter = 0.01) +
+#   tm_shape(full_data_sf %>%
+#            filter(offline_pat_pct >= 75), name = "GP Surgeries in England (> 75% not using online services)") +
+#   tm_symbols(title.col = "Patients aged 65+ (weighted): quintile",
+#              col = "older_popn_quintile",
+#              border.col = "brown2",
+#              border.lwd = 20,
+#              popup.vars = c("practice_name", "postcode", "total_patients", "offline_pat_pct"),
+#              scale = 0.05,
+#              palette = "-viridis",
+#              n = 5,
+#              alpha = 1,
+#              border.alpha = 1,
+#              jitter = 0.01)
+
+full_data_sf <- readRDS("full_data_sf.Rds")
+
+
+  tm_basemap("OpenStreetMap") +
+  tm_shape(full_data_sf %>%
+             filter(offline_pat_pct < 70), name = "GP Surgeries in England (>30% using GP online services)") +
+  tm_bubbles(size = "total_patients",
+             col = "older_popn_quintile",
+             title.col = "Number of patients aged 65+<br>(quintile: 5 = most)",
+             palette = "-viridis",
+             border.col = "deeppink2",
+             border.alpha = 1,
+             border.lwd = 10,
+             scale = 0.05,
+             alpha = 0.8,
+             # jitter = 0.01,
+             # legend.col.show = FALSE,
+             id = "practice_name",
+             popup.vars = c(" " = "postcode", "Patients" = "total_patients", "% 'offline'" = "offline_pat_pct")) +
+  tm_shape(full_data_sf %>%
+             filter(offline_pat_pct >= 70), name = "GP Surgeries in England (<30% using GP online services)") +
+  tm_bubbles(size = "total_patients",
+             col = "older_popn_quintile",
+             title.col = "Number of patients aged 65+<br>(quintile: 5 = most)",
+             palette = "-viridis",
+             border.col = "orangered2",
+             border.alpha = 1,
+             border.lwd = 10,
+             scale = 0.05,
+             alpha = 0.8,
+             # jitter = 0.01,
+             # legend.col.show = FALSE,
+             id = "practice_name",
+             popup.vars = c(" " = "postcode", "Patients" = "total_patients", "% 'offline'" = "offline_pat_pct"))
+```
+
