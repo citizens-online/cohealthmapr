@@ -1,18 +1,43 @@
 ---
 title: "CO NHSE GP DE map"
-output: html_document
+output: 
+  html_document: 
+    fig_caption: yes
+    keep_md: yes
+    smart: no
+    theme: united
 keep_md: true
 mainfont: Source Sans Pro
+editor_options: 
+  chunk_output_type: console
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include = FALSE, echo = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+suppressPackageStartupMessages(library(extrafont))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tmap))
 ```
 
-```{r warning=FALSE, echo = FALSE, out.width="100%"}
+
+### Map explanation
+
+The map below shows the location of 6,690 GP surgeries in England. The [full list](https://digital.nhs.uk/data-and-information/publications/statistical/patients-registered-at-a-gp-practice/march-2020) (March 2020) contains 6,801 surgeries but 111 of these have data missing and are not included in the map.
+
+Each surgery is colour-coded according to the number of people aged 65+ on its register (purple means the surgery is in the top or "oldest" quintile (20%) of surgeries by age; yellow means it is one of the 20% "youngest" (least people aged 65+)).
+
+The circle representing each surgery is also sized according to the *total* number of patients registered there (larger means more patients).
+
+Finally, the map is made up of two layers, which may be switched on and off using the layers feature on the left of the map. One layer contains those surgeries where _more than_ 30% of patients are using one of three online services (making appointments, ordering repeat prescriptions, looking up personal details) - this is 2,770 or 41% of surgeries. The other layer shows those where less than 30% of patients are using the available online services (3,920 or 59%).
+
+Data on availability and use of online services is from [the NHS England website](https://digital.nhs.uk/data-and-information/data-collections-and-data-sets/data-collections/pomi), dated January 2020.
+
+* Postcode lookup to grid location is provided by the [ONS Postcode Directory](https://geoportal.statistics.gov.uk/datasets/ons-postcode-directory-february-2020) - latest version February 2020
+* Basemap: [OpenStreetMap](https://openstreetmap.org)
+
+
+```{r map, warning=FALSE, echo = FALSE, out.width="100%"}
 
 suppressMessages(tmap_mode("view"))
 
@@ -63,19 +88,15 @@ suppressMessages(tmap_mode("view"))
 
 full_data_sf <- readRDS("full_data_sf.Rds")
 
-
-  tm_basemap("OpenStreetMap") +
+tm_basemap("OpenStreetMap") +
   tm_shape(full_data_sf %>%
              filter(offline_pat_pct < 70), name = "GP Surgeries in England (>30% using GP online services)") +
   tm_bubbles(size = "total_patients",
              col = "older_popn_quintile",
              title.col = "Number of patients aged 65+<br>(quintile: 5 = most)",
              palette = "-viridis",
-             border.col = "deeppink2",
-             border.alpha = 1,
-             border.lwd = 10,
              scale = 0.05,
-             alpha = 0.8,
+             alpha = 0.9,
              # jitter = 0.01,
              # legend.col.show = FALSE,
              id = "practice_name",
@@ -86,14 +107,12 @@ full_data_sf <- readRDS("full_data_sf.Rds")
              col = "older_popn_quintile",
              title.col = "Number of patients aged 65+<br>(quintile: 5 = most)",
              palette = "-viridis",
-             border.col = "orangered2",
-             border.alpha = 1,
-             border.lwd = 10,
              scale = 0.05,
-             alpha = 0.8,
+             alpha = 0.9,
              # jitter = 0.01,
              # legend.col.show = FALSE,
              id = "practice_name",
              popup.vars = c(" " = "postcode", "Patients" = "total_patients", "% 'offline'" = "offline_pat_pct"))
+
 ```
 
