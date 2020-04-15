@@ -29,7 +29,7 @@ Each surgery is colour-coded according to the number of people aged 65+ on its r
 
 The circle representing each surgery is also sized according to the *total* number of patients registered there (larger means more patients).
 
-Finally, the map is made up of two layers, which may be switched on and off using the layers feature on the left of the map. One layer contains those surgeries where _more than_ 30% of patients are using one of three online services (making appointments, ordering repeat prescriptions, looking up personal details) - this is 2,770 or 41% of surgeries. The other layer shows those where less than 30% of patients are using the available online services (3,920 or 59%).
+Finally, the map is made up of two layers, which may be switched on and off using the layers feature on the left of the map. One layer contains those surgeries where _more than_ 30% of patients are registered for one of three online services (making appointments, ordering repeat prescriptions, looking up personal details) - this is 2,770 surgeries (41%). The other layer shows those where _less than_ 30% of patients are registered for the available online services (3,920, or 59% of surgeries).
 
 Data on availability and use of online services is from [the NHS England website](https://digital.nhs.uk/data-and-information/data-collections-and-data-sets/data-collections/pomi), dated January 2020.
 
