@@ -1,0 +1,41 @@
+html {
+  font-size: 62.5%;
+}
+
+body,h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6, p,
+.info {
+  font-family: "Source Sans Pro", "Calibri", "Arial", "Helvetica Neue", sans-serif;
+}
+
+.leaflet-container {
+  font-family: "Calibri", sans-serif;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0;
+}
+
+.leaflet-popup-content-wrapper tr {
+  border-bottom: 1px solid #888;
+}
+
+* + p {
+  margin-top: 2rem;
+}
+
+p, li {
+  font-size: 1.8rem;
+  line-height: 1.5;
+}
+
+h3 {
+  font-weight: 600;
+}
+
+pre {
+  border: 0;
+}
+
+.hljs {
+  display: none;
+}

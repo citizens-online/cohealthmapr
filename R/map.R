@@ -6,6 +6,9 @@ library(readr)
 library(dplyr)
 conflict_prefer("filter", "dplyr")
 library(janitor)
+library(tidyr)
+library(stringr)
+library(forcats)
 library(sf)
 
 
@@ -61,10 +64,10 @@ surgery_data <- ons_nspcl_data %>%
 pomi_url <- "https://digital.nhs.uk/binaries/content/assets/website-assets/data-and-information/data-collections/pomi/pomi_1920.zip"
 pomi_zip <- here("data/pomi_1920.zip")
 
-# download.file(pomi_url, pomi_zip)
+download.file(pomi_url, pomi_zip)
 
 pomi_file <- unzip(pomi_zip, list = TRUE) %>% pull(Name)
-# unzip(pomi_zip, exdir = here("data"))
+unzip(pomi_zip, exdir = here("data"))
 
 pomi_data_raw <- read_csv(here("data", pomi_file))
 pomi_data <- pomi_data_raw %>%
@@ -75,10 +78,9 @@ pomi_data <- pomi_data_raw %>%
   mutate_at(vars(practice_name), ~ str_to_title(.))
 
 
+# Compile to full_data ----------------------------------------------------
+
 # over65_groups <- c("65_69", "70_74", "75_79", "80_84", "85_89", "90_94", "95+")
-# over70_groups <- c("70_74", "75_79", "80_84", "85_89", "90_94", "95+")
-# over75_groups <- c("75_79", "80_84", "85_89", "90_94", "95+")
-# over80_groups <- c("80_84", "85_89", "90_94", "95+")
 
 older_age_groups <- surgery_data %>%
   pull(age_group_5) %>%
@@ -100,13 +102,13 @@ full_data <- surgery_data %>%
       summarise_at(vars(starts_with("patients")), ~ sum(.)) %>%
       ungroup()
   ) %>%
+  mutate(older_popn_unwtd = rowSums(select(.data = ., starts_with("patients")))) %>%
   mutate(older_popn_wtd = round(
-    (patients_65_69*0.55) +
-      (patients_70_74) +
-      (patients_75_79*1.1) +
-      (patients_80_84*1.2) +
-      ((patients_85_89+patients_90_94+patients_95)*1.35))) %>%
-  # mutate(older_popn_score = round(older_popn_wtd/max(older_popn_wtd), 3)) %>%
+    (patients_65_69*0.6) +
+    (patients_70_74) +
+    (patients_75_79*1.1) +
+    (patients_80_84*1.25) +
+    ((patients_85_89+patients_90_94+patients_95)*1.4))) %>%
   mutate(older_popn_quintile = ntile(older_popn_wtd, 5)) %>%
   mutate_at(vars(older_popn_quintile), ~ as_factor(.)) %>%
   left_join(pomi_data %>%
@@ -114,15 +116,10 @@ full_data <- surgery_data %>%
                         ~ if_else(total_pat_enbld > patient_list_size, patient_list_size, total_pat_enbld))) %>%
   mutate(offline_patients = patient_list_size - total_pat_enbld) %>%
   mutate(offline_pat_pct = round(offline_patients*100/patient_list_size, 2)) %>%
-  select(5,18,4,1:3,16:17, everything())
-
-  # mutate(over65_pctrank = rank(over65_pct, ties.method = "max")) %>%
-  # mutate(patient_number_rank = rank(number_of_patients, ties.method = "max")) %>%
-  # mutate(combined_over65_rank = over65_pctrank+patient_number_rank) %>%
-  # mutate(combined_rank_quintile = ntile(desc(combined_over65_rank), 5)) %>%
-  # mutate_at(vars(combined_rank_quintile), ~ forcats::as_factor(.))
-
-# glimpse(full_data)
+  # janitor::adorn_pct_formatting("offline_pat_pct")
+  mutate_at(vars(offline_pat_pct), ~ paste0(., "%")) %>%
+  # mutate(monthly_transactions = rowSums(select(.data = ., ends_with("use")))) %>%
+  select(5,19,4,1:3,17:18, everything())
 
 saveRDS(full_data, here("full_data.Rds"))
 # write_csv(full_data, here("full_data_gpsurgeries.csv"))
