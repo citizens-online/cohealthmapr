@@ -114,12 +114,11 @@ full_data_sf %>%
     label = ~practice_name,
     group = "More than 30% patients registered for online services",
     popup = paste0(
-      "<h3>", full_data_under70$practice_name, "</h3>",
-      "Postcode: ", full_data_under70$postcode, "<br />",
-      "Total number of patients: ", full_data_under70$total_patients, "<br />",
-      "Number of patients aged 65+: ", full_data_under70$older_popn_unwtd, "<br />",
-      "% patients not registered for an online service: ", full_data_under70$offline_pat_pct, "%<br />",
-      "Online transactions in Feb 2020: ", full_data_under70$total_use)) %>% 
+      "<table><tr><th><h3>", full_data_over70$practice_name, "</h3></th><th style = 'font-weight: 400;'>", full_data_over70$postcode, "</th></tr>",
+      "<tr><td>Total number of patients:</td><td style='text-align: right'><strong>", full_data_under70$total_patients, "</strong></td></tr>",
+      "<tr><td>Number of patients aged 65+:</td><td style='text-align: right'><strong>", full_data_under70$older_popn_unwtd, "</strong></td></tr>",
+      "<tr><td>% patients <em>not</em> reg'd for an online service:</td><td style='text-align: right'><strong>", full_data_under70$offline_pat_pct, "%</strong></td></tr>",
+      "<tr><td>Online transactions in Feb 2020:</td><td style='text-align: right'><strong>", full_data_under70$total_use, "</strong></td></tr></table>")) %>% 
   leaflet::addCircles(
     data = full_data_over70,
     radius = ~`^`(total_patients, 0.6),
@@ -133,21 +132,21 @@ full_data_sf %>%
     label = ~practice_name,
     group = "Less than 30% patients registered for online services",
     popup = paste0(
-      "<h3>", full_data_over70$practice_name, "</h3>",
-      "Postcode: ", full_data_over70$postcode, "<br />",
-      "Total number of patients: ", full_data_over70$total_patients, "<br />",
-      "Number of patients aged 65+: ", full_data_over70$older_popn_unwtd, "<br />",
-      "% patients not registered for an online service: ", full_data_over70$offline_pat_pct, "%<br />",
-      "Online transactions in Feb 2020: ", full_data_over70$total_use)) %>% 
+      "<table><tr><th><h3>", full_data_over70$practice_name, "</h3></th><th style = 'font-weight: 400;'>", full_data_over70$postcode, "</th></tr>",
+      "<tr><td>Total number of patients:</td><td style='text-align: right'><strong>", full_data_under70$total_patients, "</strong></td></tr>",
+      "<tr><td>Number of patients aged 65+:</td><td style='text-align: right'><strong>", full_data_under70$older_popn_unwtd, "</strong></td></tr>",
+      "<tr><td>% patients <em>not</em> reg'd for an online service:</td><td style='text-align: right'><strong>", full_data_under70$offline_pat_pct, "%</strong></td></tr>",
+      "<tr><td>Online transactions in Feb 2020:</td><td style='text-align: right'><strong>", full_data_under70$total_use, "</strong></td></tr></table>")) %>% 
   addLayersControl(overlayGroups = c("More than 30% patients registered for online services", "Less than 30% patients registered for online services"), position = "topleft",
-  options = leaflet::layersControlOptions(collapsed = FALSE)) %>% 
+  # options = leaflet::layersControlOptions(collapsed = FALSE)
+  ) %>% 
   addLegend(
     position = "topright",
     colors = viridisLite::viridis(5, direction = -1),
     opacity = 0.75,
     title = "Number of patients aged 65+<br>(quintiles; 5 = most)",
-    labels = as.character(1:5)) %>% 
-  leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = TRUE) %>% 
+    labels = as.character(1:5)) %>%  
+  # leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = TRUE)
   saveWidget("leaflet_widget1.html")
 
 full_data_sf %>% 
