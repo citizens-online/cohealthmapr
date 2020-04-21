@@ -114,7 +114,7 @@ full_data_sf %>%
     label = ~practice_name,
     group = "More than 30% patients registered for online services",
     popup = paste0(
-      "<table><tr><th><h3>", full_data_over70$practice_name, "</h3></th><th style = 'font-weight: 400;'>", full_data_over70$postcode, "</th></tr>",
+      "<table><tr><th><h3>", full_data_under70$practice_name, "</h3></th><th style = 'font-weight: 400;'>", full_data_under70$postcode, "</th></tr>",
       "<tr><td>Total number of patients:</td><td style='text-align: right'><strong>", full_data_under70$total_patients, "</strong></td></tr>",
       "<tr><td>Number of patients aged 65+:</td><td style='text-align: right'><strong>", full_data_under70$older_popn_unwtd, "</strong></td></tr>",
       "<tr><td>% patients <em>not</em> reg'd for an online service:</td><td style='text-align: right'><strong>", full_data_under70$offline_pat_pct, "%</strong></td></tr>",
@@ -133,10 +133,10 @@ full_data_sf %>%
     group = "Less than 30% patients registered for online services",
     popup = paste0(
       "<table><tr><th><h3>", full_data_over70$practice_name, "</h3></th><th style = 'font-weight: 400;'>", full_data_over70$postcode, "</th></tr>",
-      "<tr><td>Total number of patients:</td><td style='text-align: right'><strong>", full_data_under70$total_patients, "</strong></td></tr>",
-      "<tr><td>Number of patients aged 65+:</td><td style='text-align: right'><strong>", full_data_under70$older_popn_unwtd, "</strong></td></tr>",
-      "<tr><td>% patients <em>not</em> reg'd for an online service:</td><td style='text-align: right'><strong>", full_data_under70$offline_pat_pct, "%</strong></td></tr>",
-      "<tr><td>Online transactions in Feb 2020:</td><td style='text-align: right'><strong>", full_data_under70$total_use, "</strong></td></tr></table>")) %>% 
+      "<tr><td>Total number of patients:</td><td style='text-align: right'><strong>", full_data_over70$total_patients, "</strong></td></tr>",
+      "<tr><td>Number of patients aged 65+:</td><td style='text-align: right'><strong>", full_data_over70$older_popn_unwtd, "</strong></td></tr>",
+      "<tr><td>% patients <em>not</em> reg'd for an online service:</td><td style='text-align: right'><strong>", full_data_over70$offline_pat_pct, "%</strong></td></tr>",
+      "<tr><td>Online transactions in Feb 2020:</td><td style='text-align: right'><strong>", full_data_over70$total_use, "</strong></td></tr></table>")) %>% 
   addLayersControl(overlayGroups = c("More than 30% patients registered for online services", "Less than 30% patients registered for online services"), position = "topleft",
   # options = leaflet::layersControlOptions(collapsed = FALSE)
   ) %>% 
