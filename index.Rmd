@@ -2,10 +2,8 @@
 title: "Age and Digital Exclusion risk overview map:\nGP surgeries in England"
 output: 
   html_document: 
-    fig_caption: yes
-    keep_md: yes
+    keep_md: no
     smart: no
-    theme: united
     css: style.css
 mainfont: Source Sans Pro
 editor_options: 
@@ -29,7 +27,7 @@ library(htmlwidgets)
 
 The map below shows the location of 6,690 GP surgeries in England. The [full list](https://digital.nhs.uk/data-and-information/publications/statistical/patients-registered-at-a-gp-practice/march-2020) (March 2020) contains 6,801 surgeries but 111 of these have data missing and are not included in the map.
 
-Each surgery is colour-coded according to the number of people aged 65+ on its register (<span style="color: `r viridisLite::viridis(n = 5)[[1]]`; background-color: #d9d9d9;">**purple**</span> means the surgery is in the top or "oldest" quintile (20%) of surgeries by age; <span style="color: `r viridisLite::viridis(n = 5)[[5]]`; background-color: #393939;">**yellow**</span> means it is one of the 20% "youngest" (least people aged 65+)).
+Each surgery is colour-coded according to the number of people aged 65+ on its register (<span style="color: `r viridisLite::viridis(n = 5)[[1]]`;">**purple**</span> means the surgery is in the top or "oldest" quintile (20%) of surgeries by age; <span style="color: `r viridisLite::viridis(n = 5)[[5]]`; background-color: #bfbfbf;">**yellow**</span> means it is one of the 20% "youngest" (least people aged 65+)).
 
 The circle representing each surgery is also sized according to the *total* number of patients registered there (larger means more patients).
 
@@ -97,7 +95,7 @@ viridis_palette <- colorQuantile(palette = "viridis", domain = full_data_sf$olde
 full_data_under70 <- dplyr::filter(full_data_sf, offline_pat_pct < 70)
 full_data_over70 <- dplyr::filter(full_data_sf, offline_pat_pct >= 70)
 
-full_data_sf %>% 
+gp_map <- full_data_sf %>% 
   leaflet() %>% 
   enableTileCaching() %>%
   addProviderTiles(providers$CartoDB.Positron, options = tileOptions(minZoom = 7, maxZoom = 14)) %>% 
@@ -142,12 +140,14 @@ full_data_sf %>%
   ) %>% 
   addLegend(
     position = "topright",
-    colors = viridisLite::viridis(5, direction = -1, alpha = 1),
-    opacity = 1,
+    colors = viridisLite::viridis(5, direction = -1, alpha = NULL),
+    opacity = 0.75,
     title = "Number of patients aged 65+<br>(quintiles; 5 = most)",
     labels = as.character(1:5)) %>% 
-  leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = FALSE) # %>% 
-  # saveWidget("leaflet_widget1.html")
+  leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = FALSE)
+
+gp_map
+saveWidget(gp_map, "leaflet_widget1.html")
 
 ```
 
