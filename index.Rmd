@@ -44,7 +44,7 @@ This is only one way in which digital exclusion can be estimated, however, and w
 
 
 
-```{r tmap, warning=FALSE, echo = FALSE, out.width="100%", out.height = "600px"}
+```{r tmap, eval = FALSE, echo = FALSE, out.width="100%", out.height = "600px"}
 
 suppressMessages(tmap_mode("view"))
 
@@ -90,7 +90,7 @@ full_data_map <- tm_basemap("OpenStreetMap") +
 
 ```{r leaflet, out.width="100%", out.height = "600px"}
 
-# full_data <- readRDS("full_data.Rds")
+full_data_sf <- readRDS("full_data_sf.Rds")
 
 viridis_palette <- colorQuantile(palette = "viridis", domain = full_data_sf$older_popn_wtd, n = 5, reverse = TRUE)
 
@@ -105,8 +105,8 @@ full_data_sf %>%
     data = full_data_under70,
     radius = ~`^`(total_patients, 0.625),
     stroke = TRUE,
-    color = "#708090",
-    weight = 3,
+    color = "#00c5cd",
+    weight = 2,
     opacity = 0.75,
     fill = TRUE,
     fillColor = ~viridis_palette(older_popn_wtd),
@@ -124,7 +124,7 @@ full_data_sf %>%
     radius = ~`^`(total_patients, 0.625),
     stroke = TRUE,
     color = "#ee1289",
-    weight = 3,
+    weight = 2,
     opacity = 0.75,
     fill = TRUE,
     fillColor = ~viridis_palette(older_popn_wtd),
@@ -146,42 +146,9 @@ full_data_sf %>%
     opacity = 1,
     title = "Number of patients aged 65+<br>(quintiles; 5 = most)",
     labels = as.character(1:5)) %>% 
-  leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = FALSE) %>% 
-  saveWidget("leaflet_widget1.html")
+  leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = FALSE) # %>% 
+  # saveWidget("leaflet_widget1.html")
 
-full_data_sf %>% 
-  leaflet() %>% 
-  enableTileCaching() %>%
-  addProviderTiles(providers$CartoDB.Positron, options = tileOptions(minZoom = 7, maxZoom = 14)) %>% 
-  leaflet::addCircles(
-    data = dplyr::filter(full_data_sf, offline_pat_pct >= 70),
-    radius = ~`^`(total_patients, 0.6),
-    stroke = TRUE,
-    color = ~viridis_palette(older_popn_wtd),
-    weight = 5,
-    opacity = 0.75,
-    fill = TRUE,
-    fillColor = ~viridis_palette(older_popn_wtd),
-    # fillColor = "#EE1289",
-    fillOpacity = 0.9,
-    label = ~practice_name,
-    group = "Less than 30%"
-    ) %>% 
-  leaflet::addCircles(
-    data = dplyr::filter(full_data_sf, offline_pat_pct < 70),
-    radius = ~`^`(total_patients, 0.6),
-    stroke = TRUE,
-    color = ~viridis_palette(older_popn_wtd),
-    weight = 5,
-    opacity = 0.75,
-    fill = TRUE,
-    fillColor = "#708090",
-    fillOpacity = 0.4,
-    label = ~practice_name,
-    group = "More than 30%"
-    ) %>% 
-  leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = TRUE) %>% 
-  saveWidget("leaflet_widget2.html")
 ```
 
 
