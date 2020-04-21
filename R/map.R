@@ -45,9 +45,9 @@ ons_pc_zip <- here("data/tmp/ons_postcode_data.zip")
 # URLs that end in `.zip`)
 # download.file(ons_nspcl_feb20_url, ons_pc_zip, mode = "wb")
 ons_nspcl_file <- unzip(ons_pc_zip, list = TRUE) %>% pull(Name)
-# unzip(ons_pc_zip, exdir = here("data/tmp"))
+unzip(ons_pc_zip, exdir = here("data/tmp"))
 
-ons_nspcl_data <- read_csv(here("data/tmp/", ons_nspcl_file), col_types = "ccciiiiicc????????????ccc")
+ons_nspcl_data <- read_csv(here("data/tmp", ons_nspcl_file), col_types = "ccciiiiicc????????????ccc")
 
 
 ## join postcode data to NHS data
@@ -64,7 +64,7 @@ surgery_data <- ons_nspcl_data %>%
 pomi_url <- "https://digital.nhs.uk/binaries/content/assets/website-assets/data-and-information/data-collections/pomi/pomi_1920.zip"
 pomi_zip <- here("data/pomi_1920.zip")
 
-download.file(pomi_url, pomi_zip)
+# download.file(pomi_url, pomi_zip)
 
 pomi_file <- unzip(pomi_zip, list = TRUE) %>% pull(Name)
 unzip(pomi_zip, exdir = here("data"))
@@ -117,31 +117,28 @@ full_data <- surgery_data %>%
   mutate(offline_patients = patient_list_size - total_pat_enbld) %>%
   mutate(offline_pat_pct = round(offline_patients*100/patient_list_size, 2)) %>%
   # janitor::adorn_pct_formatting("offline_pat_pct")
-  mutate_at(vars(offline_pat_pct), ~ paste0(., "%")) %>%
+  # mutate_at(vars(offline_pat_pct), ~ paste0(., "%")) %>%
   # mutate(monthly_transactions = rowSums(select(.data = ., ends_with("use")))) %>%
-  select(5,19,4,1:3,17:18, everything())
+  select(5,19,4,1:3,17:18, everything()) %>%
+  arrange(desc(total_patients))
 
 saveRDS(full_data, here("full_data.Rds"))
 # write_csv(full_data, here("full_data_gpsurgeries.csv"))
 
 # full_data <- read_csv(here("full_data_gpsurgeries.csv"))
+# full_data <- readRDS(here("full_data.Rds"))
+
 
 # ukgrid <- "+init=epsg:27700"
-# opensm <- "+init=epsg:3857"
 # latlon = "+init=epsg:4326"
+# opensm <- "+init=epsg:3857"
 
-# the `sp` way
-# full_data_sp <- full_data %>%
-#   select(easting, northing) %>%
-#   sf::sf_project(pts = ., from = ukgrid, to = latlon) %>%
-#   sf::st_set_crs(4326) %>%
-#   sp::SpatialPointsDataFrame(data = full_data, proj4string = sp::CRS(ukgrid)) %>%
-#   sp::spTransform(sp::CRS(opensm))
 
 # the `sf` way
 full_data_sf <- full_data %>%
   sf::st_as_sf(coords = c("easting", "northing"), crs = 27700) %>%
-  sf::st_transform(crs = 4326)
+  sf::st_transform(crs = 4326) %>%
+  sf::st_jitter(0.002)
 
 saveRDS(full_data_sf, here("full_data_sf.Rds"))
 
