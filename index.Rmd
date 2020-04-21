@@ -103,10 +103,10 @@ full_data_sf %>%
   addProviderTiles(providers$CartoDB.Positron, options = tileOptions(minZoom = 7, maxZoom = 14)) %>% 
   leaflet::addCircles(
     data = full_data_under70,
-    radius = ~`^`(total_patients, 0.6),
+    radius = ~`^`(total_patients, 0.625),
     stroke = TRUE,
     color = "#708090",
-    weight = 4,
+    weight = 3,
     opacity = 0.75,
     fill = TRUE,
     fillColor = ~viridis_palette(older_popn_wtd),
@@ -121,10 +121,10 @@ full_data_sf %>%
       "<tr><td>Online transactions in Feb 2020:</td><td style='text-align: right'><strong>", full_data_under70$total_use, "</strong></td></tr></table>")) %>% 
   leaflet::addCircles(
     data = full_data_over70,
-    radius = ~`^`(total_patients, 0.6),
+    radius = ~`^`(total_patients, 0.625),
     stroke = TRUE,
-    color = "#EE1289",
-    weight = 4,
+    color = "#ee1289",
+    weight = 3,
     opacity = 0.75,
     fill = TRUE,
     fillColor = ~viridis_palette(older_popn_wtd),
@@ -142,11 +142,11 @@ full_data_sf %>%
   ) %>% 
   addLegend(
     position = "topright",
-    colors = viridisLite::viridis(5, direction = -1),
-    opacity = 0.75,
+    colors = viridisLite::viridis(5, direction = -1, alpha = 1),
+    opacity = 1,
     title = "Number of patients aged 65+<br>(quintiles; 5 = most)",
-    labels = as.character(1:5)) %>%  
-  # leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = TRUE)
+    labels = as.character(1:5)) %>% 
+  leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = FALSE) %>% 
   saveWidget("leaflet_widget1.html")
 
 full_data_sf %>% 
