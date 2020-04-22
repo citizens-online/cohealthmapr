@@ -15,8 +15,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(extrafont)
 library(dplyr)
-suppressPackageStartupMessages(library(tmap))
-suppressPackageStartupMessages(library(sf))
+# suppressPackageStartupMessages(library(tmap))
+library(sf)
 library(leaflet)
 library(leaflet.extras)
 library(htmlwidgets)
@@ -89,17 +89,27 @@ full_data_map <- tm_basemap("OpenStreetMap") +
 ```{r leaflet, out.width="100%", out.height = "600px"}
 
 full_data_sf <- readRDS("full_data_sf.Rds")
+ccg_bounds <- readRDS("ccg_bounds.Rds")
 
 viridis_palette <- colorQuantile(palette = "viridis", domain = full_data_sf$older_popn_wtd, n = 5, reverse = TRUE)
 
 full_data_under70 <- dplyr::filter(full_data_sf, offline_pat_pct < 70)
 full_data_over70 <- dplyr::filter(full_data_sf, offline_pat_pct >= 70)
 
-gp_map <- full_data_sf %>% 
-  leaflet() %>% 
-  enableTileCaching() %>%
+gp_map <- leaflet(full_data_sf) %>% 
   addProviderTiles(providers$CartoDB.Positron, options = tileOptions(minZoom = 7, maxZoom = 14)) %>% 
-  leaflet::addCircles(
+  addPolygons(
+    data = ccg_bounds,
+    stroke = TRUE,
+    weight = 1,
+    opacity = 0.75,
+    color = "#6C7B8B",
+    fill = TRUE,
+    fillOpacity = 0,
+    group = "CCG boundaries",
+    label = ~ccg20nm
+  ) %>% 
+  addCircles(
     data = full_data_under70,
     radius = ~`^`(total_patients, 0.625),
     stroke = TRUE,
@@ -110,14 +120,14 @@ gp_map <- full_data_sf %>%
     fillColor = ~viridis_palette(older_popn_wtd),
     fillOpacity = 0.75,
     label = ~practice_name,
-    group = "More than 30% patients registered for online services",
+    group = "> 30% 'online'",
     popup = paste0(
       "<table><tr><th><h3>", full_data_under70$practice_name, "</h3></th><th style = 'font-weight: 400;'>", full_data_under70$postcode, "</th></tr>",
       "<tr><td>Total number of patients:</td><td style='text-align: right'><strong>", full_data_under70$total_patients, "</strong></td></tr>",
       "<tr><td>Number of patients aged 65+:</td><td style='text-align: right'><strong>", full_data_under70$older_popn_unwtd, "</strong></td></tr>",
       "<tr><td>% patients <em>not</em> reg'd for an online service:</td><td style='text-align: right'><strong>", full_data_under70$offline_pat_pct, "%</strong></td></tr>",
       "<tr><td>Online transactions in Feb 2020:</td><td style='text-align: right'><strong>", full_data_under70$total_use, "</strong></td></tr></table>")) %>% 
-  leaflet::addCircles(
+  addCircles(
     data = full_data_over70,
     radius = ~`^`(total_patients, 0.625),
     stroke = TRUE,
@@ -128,15 +138,20 @@ gp_map <- full_data_sf %>%
     fillColor = ~viridis_palette(older_popn_wtd),
     fillOpacity = 0.75,
     label = ~practice_name,
-    group = "Less than 30% patients registered for online services",
+    group = "< 30% 'online'",
     popup = paste0(
       "<table><tr><th><h3>", full_data_over70$practice_name, "</h3></th><th style = 'font-weight: 400;'>", full_data_over70$postcode, "</th></tr>",
       "<tr><td>Total number of patients:</td><td style='text-align: right'><strong>", full_data_over70$total_patients, "</strong></td></tr>",
       "<tr><td>Number of patients aged 65+:</td><td style='text-align: right'><strong>", full_data_over70$older_popn_unwtd, "</strong></td></tr>",
       "<tr><td>% patients <em>not</em> reg'd for an online service:</td><td style='text-align: right'><strong>", full_data_over70$offline_pat_pct, "%</strong></td></tr>",
       "<tr><td>Online transactions in Feb 2020:</td><td style='text-align: right'><strong>", full_data_over70$total_use, "</strong></td></tr></table>")) %>% 
-  addLayersControl(overlayGroups = c("More than 30% patients registered for online services", "Less than 30% patients registered for online services"), position = "topleft",
-  # options = leaflet::layersControlOptions(collapsed = FALSE)
+  hideGroup("> 30% 'online'") %>% 
+  addLayersControl(overlayGroups = c(
+    "> 30% 'online'",
+    "< 30% 'online'",
+    "CCG Boundaries"),
+    position = "topleft",
+    options = leaflet::layersControlOptions(collapsed = FALSE)
   ) %>% 
   addLegend(
     position = "topright",
@@ -144,7 +159,10 @@ gp_map <- full_data_sf %>%
     opacity = 0.75,
     title = "Number of patients aged 65+<br>(quintiles; 5 = most)",
     labels = as.character(1:5)) %>% 
-  leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = FALSE)
+  leaflet.extras::addFullscreenControl(position = "topleft", pseudoFullscreen = FALSE) %>% 
+  addMiniMap(tiles = providers$CartoDB.Positron,
+             zoomLevelOffset = -4,
+             toggleDisplay = TRUE)
 
 gp_map
 saveWidget(gp_map, "leaflet_widget1.html")
