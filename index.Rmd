@@ -149,7 +149,7 @@ gp_map <- leaflet(full_data_sf) %>%
   addLayersControl(overlayGroups = c(
     "> 30% 'online'",
     "< 30% 'online'",
-    "CCG Boundaries"),
+    "CCG boundaries"),
     position = "topleft",
     options = leaflet::layersControlOptions(collapsed = FALSE)
   ) %>% 
