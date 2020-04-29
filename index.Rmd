@@ -165,7 +165,7 @@ gp_map <- leaflet(full_data_sf) %>%
              toggleDisplay = TRUE)
 
 gp_map
-# saveWidget(gp_map, "leaflet_widget1.html")
+saveWidget(gp_map, "leaflet_widget1.html")
 
 ```
 

@@ -1,6 +1,0 @@
-^.*\.Rproj$
-^\.Rproj\.user$
-^LICENSE\.md$
-^R/make_map_initial.R
-^data/tmp
-^data/POMI*
