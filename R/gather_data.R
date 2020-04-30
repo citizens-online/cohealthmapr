@@ -11,7 +11,6 @@ library(sf)
 library(stringr)
 library(tidyr)
 
-
 # get NHS surgery data - 5y age brackets ----------------------------------
 
 

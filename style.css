@@ -2,13 +2,79 @@ html {
   font-size: 62.5%;
 }
 
-body,h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6, p,
-.info {
-  font-family: "Source Sans Pro", "Calibri", "Arial", "Helvetica Neue", sans-serif;
+body,
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6, p,
+.info,
+.leaflet-container {
+  font-family: "Source Sans Pro", "Open Sans", "Calibri", "Helvetica Neue", "Arial", sans-serif;
+  /* color: #533455; /* "voodoo" https://chir.ag/projects/name-that-color/#533455 */
+  /* blackcurrant #412B54 */
+  /* bossanova #4E2A5A */
+  color: #3e3a44; /* "ship gray" https://chir.ag/projects/name-that-color/#3E3A44 */
+  line-height: 1.333;
 }
 
-.leaflet-container {
-  font-family: "Calibri", sans-serif;
+p a[href],
+li a[href] {
+  text-decoration: 2px underline;
+}
+
+.main-container {
+  padding: 3rem 2rem;
+}
+
+.main-container > * {
+  margin-top: 2rem;
+}
+
+h1 {
+  font-size: 3.6rem;
+  font-weight: thin;
+}
+
+h2 {
+  font-size: 3.2rem;
+  font-weight: 600;
+}
+h3 {
+  font-size: 2.4rem;
+  font-weight: 600;
+  line-height: 1.667;
+  border-bottom: 2px solid;
+}
+
+#co_header {
+  background-image: url(https://www.citizensonline.org.uk/wp-content/uploads/2018/01/background_powerpoint.png);
+	background-size: cover;
+	background-repeat: no-repeat;
+	background-position: center;
+	background-attachment: fixed;
+	overflow-y: hidden;
+	max-height: 25vh;
+	min-height: 170px;
+}
+
+#co_header img {
+  width: 548px;
+  height: 120px;
+  max-width: 80vw;
+  max-height: 16.43vw;
+  margin: 25px;
+  float: left;
+}
+
+#icons ul {
+  list-style-type: none;
+  text-align: right;
+}
+#icons li {
+  font-size: 3.6rem;
+  display: inline;
+  padding: 5px;
+}
+#icons li a {
+  text-decoration: none;
 }
 
 .leaflet-popup-content-wrapper {
@@ -19,23 +85,22 @@ body,h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6, p,
   border-bottom: 1px solid #888;
 }
 
-* + p {
-  margin-top: 2rem;
-}
+
 
 p, li {
+  max-width: 38em;
   font-size: 1.8rem;
   line-height: 1.5;
 }
 
-h3 {
-  font-weight: 600;
-}
-
-pre {
+div.sourceCode {
+  padding: 15px;
   border: 0;
+  max-width: 80em;
 }
-
-.hljs {
-  display: none;
+pre.sourceCode,
+code .sourceCode {
+  font-family: Hasklig, Source Code Pro, Consolas, Courier, monospace;
+  font-size: 1.2rem;
+  line-height: 1.25;
 }

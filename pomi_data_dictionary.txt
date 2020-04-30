@@ -1,0 +1,70 @@
+Patient_List_Size
+Number of patients registered at a general practice as at the reporting period end date (report_period_end).	Numeric (integer)
+
+
+Sys_Appts_Enbld
+Functionality status of the online system at the Practice for enabling the use of online Patient Transactional Services for booking and/or cancelling appointments through the Principal system as at the reporting_end_date.
+2 = Patients registered with General Practices that enabled the functionality to allow them to book & cancel appointments online
+1 = Patients registered with General Practices that could allow them to book & cancel appointments online but  have not yet enabled the functionality
+0 = Patients registered with General Practices where there is no functionality to enable them to book & cancel appointments online
+9 = Patients registered with General Practices where the availability of functionality is not known
+
+
+Pat_Appts_Enbld
+Total number of 'online patients' registered to use an online Patient Transactional Service to book and/or cancel appointments, as recorded on the last day of the reporting period (report_period_end)
+Numeric (integer)
+
+
+Pat_Appts_Use
+Total number of appointment scheduling or cancelling transactions using an Online Patient Transaction Service.
+Numeric (integer)
+
+
+Sys_Presc_Enbld
+Functionality status of the online system at the Practice for enabling the use of online Patient Transactional Services for ordering repeat prescriptions through the Principal system as at the reporting_end_date.
+2 = Patients registered with General Practices that enabled the functionality to allow them to order prescriptions online
+1 = Patients registered with General Practices that could allow them to order prescriptions online but  have not yet enabled the functionality
+0 = Patients registered with General Practices where there is no functionality to enable them to order prescriptions online
+9 = Patients registered with General Practices where the availability of functionality is not known
+
+
+Pat_Presc_Enbld
+Total number of 'online patients' registered to use an online Patient Transactional Service to order repeat prescriptions, as recorded on the last day of the reporting period (report_period_end)
+Numeric (integer)
+
+
+Pat_Presc_Use
+Total number of prescriptions ordered using an Online Patient Transaction Service. (Note that ordering several items at once to be counted as one prescription).
+Numeric (integer)
+
+
+Sys_DetCodeRec_Enbld
+Functionality status of the Practice system for enabling the use of online Patient Record Access Services for 'online patients' to view their Detailed Coded Care Record as at the reporting_end_date.
+2 = Patients registered with General Practices that enabled the functionality to allow them to view detaild coded records online
+1 = Patients registered with General Practices that could allow them to view detailed coded records online but  have not yet enabled the functionality
+0 = Patients registered with General Practices where there is no functionality to enable them to view detailed coded records online
+9 = Patients registered with General Practices where the availability of functionality is not known
+
+
+Pat_DetCodeRec_Enbld
+Total number of 'online patients' registered to use an online Patient Record Access Service to access elements of the  Detailed Coded Care Record as recorded on the last day of the reporting period (report_period_end)
+Numeric (integer)
+
+
+Pat_DetCodeRec_Use
+Total number of accesses of a patient  record by an 'online patient' with Detailed Coded Care Record access.
+Numeric (integer)
+
+
+Total_Pat_Enbld
+Total number of 'online patients' registered for at least one online service as at recorded on the last day of the reporting period (report_period_end).
+Numeric (integer)
+
+
+New_Pat_Enbld
+Total number of new 'online patients' registered for at least one online service within the reporting month.
+Numeric (integer)
+
+
+Total_Use
+The total number of online transactions that have occurred within the reporting month.	Numeric (integer)
