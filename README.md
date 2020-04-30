@@ -1,5 +1,3 @@
-# cohealthmapr
-
 ![Citizens Online logo](co_logo_smaller.png)
 
 This code and resulting map were created by Francis Barton of [Citizens Online][co-www] in March-April 2020.
