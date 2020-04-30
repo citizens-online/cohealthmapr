@@ -1,17 +1,10 @@
----
-output: html_document
-editor_options: 
-  chunk_output_type: inline
----
-
 # cohealthmapr
 
-![Citizens Online logo][co_logo_colour.png]
+![Citizens Online logo][raw/master/co_logo_colour.png]
 
 This code and resulting map were created by Francis Barton of [Citizens Online][co-www] in March-April 2020.
 
-See
-
+See:
 * [this page][coh-map] for RMarkdown output and "behind the scenes"
 * [our blog post][co-www-blog] launching the map, and
 * [the map page and explanatory text][co-www-map].
