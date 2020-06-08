@@ -1,11 +1,9 @@
 # geocoding GP surgery postcodes ------------------------------------------
 
-library(conflicted)
-library(dplyr)
-conflict_prefer("filter", "dplyr")
+library(dplyr, warn.conflicts = FALSE)
 library(forcats)
-library(here)
-library(janitor)
+library(here, warn.conflicts = FALSE)
+library(janitor, warn.conflicts = FALSE)
 library(readr)
 library(sf)
 library(stringr)
@@ -15,9 +13,11 @@ library(tidyr)
 
 
 ## download and import csv from NHS Digital website (> 18MB file)
-## https://digital.nhs.uk/data-and-information/publications/statistical/patients-registered-at-a-gp-practice/march-2020
+## https://digital.nhs.uk/data-and-information/publications/statistical/patients-registered-at-a-gp-practice/may-2020
 
-nhs_csv_url <- "https://files.digital.nhs.uk/90/E7CC92/gp-reg-pat-prac-quin-age.csv"
+# May 2020
+nhs_csv_url <- "https://files.digital.nhs.uk/7F/C526F5/gp-reg-pat-prac-quin-age.csv"
+
 nhs_csv <- here("data/surgery_data_raw.csv")
 # download.file(nhs_csv_url, nhs_csv) # uncomment to download
 
@@ -25,45 +25,52 @@ nhs_csv <- here("data/surgery_data_raw.csv")
 surgery_data_raw <- readr::read_csv(nhs_csv, col_types = "cccccccci")
 
 ## tidy up raw data
-surgery_data2 <- surgery_data_raw %>%
+surgery_data <- surgery_data_raw %>%
   clean_names %>%
   filter(org_type == "GP") %>%          # only show GPs (not STP/CCG data)
-  select(-c(1:3,5))                     # remove a few columns
+  select(-c(1:3,5)) %>%                      # remove a few columns
+  rename("practice_code" = org_code)
 
+rm(surgery_data_raw)
 
 
 # get postcode data -------------------------------------------------------
 
 # download and import postcode/COA lookup from ONS OpenGeography
 # https://geoportal.statistics.gov.uk/datasets/postcode-to-output-area-hierarchy-with-classifications-february-2020-lookup-in-the-uk
-ons_nspcl_feb20_url <- "https://www.arcgis.com/sharing/rest/content/items/b9f02f5935be45f6ad1b6405b0d43f72/data"
+# ons_nspcl_url <- "https://www.arcgis.com/sharing/rest/content/items/b9f02f5935be45f6ad1b6405b0d43f72/data"
+
+# https://geoportal.statistics.gov.uk/datasets/ons-postcode-directory-may-2020
+ons_nspcl_url <- "https://www.arcgis.com/sharing/rest/content/items/fb894c51e72748ec8004cc582bf27e83/data"
+
+
 ons_pc_zip <- here("data/tmp/ons_postcode_data.zip")
 
 # Important to set `mode = "wb"` here because the url does not end in `.zip`
 # so R does not know it's a binary file (normally sets "wb" automatically for
 # URLs that end in `.zip`)
-# Beware, this is a 45MB download (zip) and ~800MB file when unzipped
 
-# download.file(ons_nspcl_feb20_url, ons_pc_zip, mode = "wb") # uncomment to download
+# Beware, this is a 210MB download (zip) and ~1.3GB file when unzipped
 
-ons_nspcl_file <- unzip(ons_pc_zip, list = TRUE) %>% pull(Name)
-unzip(ons_pc_zip, exdir = here("data/tmp"))
+# download.file(ons_nspcl_url, ons_pc_zip, mode = "wb") # uncomment to download
 
-ons_nspcl_data <- read_csv(here("data/tmp", ons_nspcl_file), col_types = "ccciiiiicc????????????ccc")
+ons_nspcl_file <- "Data/ONSPD_MAY_2020_UK.csv"
+unzip(ons_pc_zip, exdir = here("data/tmp"), files = ons_nspcl_file)
+
+ons_nspcl_data <- read_csv(here("data/tmp", ons_nspcl_file), col_types = "ccciiccccciiiiccccicccccccccccccccccccccccddcccicc") %>%
+  select("postcode" = pcds, "easting" = oseast1m, "northing" = osnrth1m)
 
 ## join postcode data to NHS data
-surgery_data <- ons_nspcl_data %>%
-  select(3, "easting" = oseast1m, "northing" = osnrth1m, 22) %>%
-  inner_join(surgery_data2, by = c("pcds" = "postcode")) %>%
-  rename("postcode" = pcds, "practice_code" = org_code)
+surgery_data <- inner_join(ons_nspcl_data, surgery_data)
 
 
 # get patient online data (POMI) ------------------------------------------
 
 
 # https://digital.nhs.uk/data-and-information/data-collections-and-data-sets/data-collections/pomi
-pomi_url <- "https://digital.nhs.uk/binaries/content/assets/website-assets/data-and-information/data-collections/pomi/pomi_1920.zip"
-pomi_zip <- here("data/tmp/pomi_1920.zip")
+
+pomi_url <- "https://digital.nhs.uk/binaries/content/assets/website-assets/data-and-information/data-collections/pomi/pomi_2021.zip"
+pomi_zip <- here("data/tmp/pomi_2021.zip")
 
 # download.file(pomi_url, pomi_zip) #  uncomment to download (this one is only 6MB)
 
@@ -80,6 +87,7 @@ pomi_data <- pomi_data_raw %>%
   # transform surgery names to Title Case (from ALL CAPS)
   mutate_at(vars(practice_name), ~ str_to_title(.))
 
+rm(pomi_data_raw)
 
 # Compile to full_data ----------------------------------------------------
 
@@ -94,7 +102,7 @@ older_age_groups <- surgery_data %>%
 full_data <- surgery_data %>%
   # don't keep data subdivisions by sex, only keep "all"
   filter(sex == "ALL") %>%
-  select(1:5, total_patients = 8) %>%
+  select(1:4, total_patients = number_of_patients) %>%
   left_join(
     surgery_data %>%
       # only keep patient numbers for patients in `older_age_groups`
@@ -126,7 +134,7 @@ full_data <- surgery_data %>%
   mutate(offline_patients = patient_list_size - total_pat_enbld) %>%
   mutate(offline_pat_pct = round(offline_patients*100/patient_list_size, 2)) %>%
   # reorder columns a bit, just because
-  select(5,19,4,1:3,17:18, everything()) %>%
+  select(4,18,1:3,16:17, everything()) %>%
   # and sort by surgery size: this helps larger circles get plotted first (and hence below smaller circles)
   arrange(desc(total_patients))
 

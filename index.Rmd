@@ -19,12 +19,13 @@ output:
 
 knitr::opts_chunk$set(echo = TRUE)
 
-library(dplyr)
+library(dplyr, warn.conflicts = FALSE)
 library(extrafont)
 library(htmlwidgets)
 library(icon)
 library(leaflet)
 library(leaflet.extras)
+library(scales, warn.conflicts = FALSE)
 library(sf)
 
 ```
@@ -80,6 +81,11 @@ The final data that is used for the GP surgeries information on the map can be d
 
 full_data_sf <- readRDS("full_data_sf.Rds")
 ccg_bounds <- readRDS("ccg_bounds.Rds")
+
+surgeries_included <- nrow(filter(full_data_sf, !is.na(practice_name)))
+less_than_thirty <- nrow(filter(full_data_sf, offline_pat_pct > 70))
+more_than_thirty <- nrow(filter(full_data_sf, offline_pat_pct <= 70))
+
 
 viridis_palette <- colorQuantile(palette = "viridis", domain = full_data_sf$older_popn_wtd, n = 5, reverse = TRUE)
 
@@ -245,8 +251,8 @@ However, the number of patients aged 65+ reported in the pop-up data bubbles is 
 The map uses the *national* ranking of each surgery by age: i.e. the purple fill means it is in the top 20% in England by number of older patients.
 We can provide maps where instead the top 20% is identified within a regional or more local set of GP surgeries.
 
-Of the 6,691 surgeries where there is Patient Online data, 3,854 (58%) have *less than* 30% of patients registered for online services, and 2,837 (42%) have more than 30% of patients registered.
-30% is chosen as it is near to the median registration rate of 27.8% and the current overall national rate of 30.3%.
+Of the `r comma(surgeries_included)` surgeries where there is Patient Online data, `r comma(less_than_thirty)` (`r round(less_than_thirty*100/surgeries_included)`%) have *less than* 30% of patients registered for online services, and `r comma(more_than_thirty)` (`r round(more_than_thirty*100/surgeries_included)`%) have more than 30% of patients registered.
+30% is chosen as it is relatively near to the median registration rate of `r 100 - median(full_data_sf$offline_pat_pct, na.rm = TRUE)`% and the current overall national rate of 31.15% (June 2020).
 
 Where we refer to “online services” we mean:
 making GP appointments, ordering repeat prescriptions, and/or looking up personal details.
@@ -254,14 +260,14 @@ making GP appointments, ordering repeat prescriptions, and/or looking up persona
 #### Data sources
 
 * Surgery name, size and location data are obtained from
-[NHS Digital Patients Registered](https://digital.nhs.uk/data-and-information/publications/statistical/patients-registered-at-a-gp-practice/march-2020) (March 2020).
+[NHS Digital Patients Registered](https://digital.nhs.uk/data-and-information/publications/statistical/patients-registered-at-a-gp-practice/may-2020) (May 2020).
 * Data on availability and use of Patient Online services is from
 [NHS Digital](https://digital.nhs.uk/data-and-information/data-collections-and-data-sets/data-collections/pomi),
-latest data February 2020.
-Unfortunately, data was unavailable for 110 of the surgeries listed in (1), and these are not included on the map.
+latest data 30 April 2020.
+Unfortunately, data was unavailable for `r nrow(filter(full_data_sf, is.na(practice_name)))` of the surgeries listed in (1), and these are not included on the map.
 * Conversion from postcode to grid location is provided by the
-[ONS Postcode Directory](https://geoportal.statistics.gov.uk/datasets/ons-postcode-directory-february-2020)
-– latest version February 2020.
+[ONS Postcode Directory](https://geoportal.statistics.gov.uk/datasets/ons-postcode-directory-may-2020)
+– latest version May 2020.
 Small amounts of ‘jitter’ have been applied to locations in order to reduce overlap where two surgeries share a postcode.
 * The basemap data is from 
 [OpenStreetMap](https://openstreetmap.org)
