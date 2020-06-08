@@ -60,6 +60,11 @@ unzip(ons_pc_zip, exdir = here("data/tmp"), files = ons_nspcl_file)
 ons_nspcl_data <- read_csv(here("data/tmp", ons_nspcl_file), col_types = "ccciiccccciiiiccccicccccccccccccccccccccccddcccicc") %>%
   select("postcode" = pcds, "easting" = oseast1m, "northing" = osnrth1m)
 
+saveRDS(ons_nspcl_data, here("data/ons_nspcl_data.Rds"))
+
+file.remove(ons_pc_zip)
+file.remove(here("data/tmp", ons_nspcl_file))
+
 ## join postcode data to NHS data
 surgery_data <- inner_join(ons_nspcl_data, surgery_data)
 
@@ -88,6 +93,7 @@ pomi_data <- pomi_data_raw %>%
   mutate_at(vars(practice_name), ~ str_to_title(.))
 
 rm(pomi_data_raw)
+
 
 # Compile to full_data ----------------------------------------------------
 

@@ -82,15 +82,17 @@ The final data that is used for the GP surgeries information on the map can be d
 full_data_sf <- readRDS("full_data_sf.Rds")
 ccg_bounds <- readRDS("ccg_bounds.Rds")
 
-surgeries_included <- nrow(filter(full_data_sf, !is.na(practice_name)))
-less_than_thirty <- nrow(filter(full_data_sf, offline_pat_pct > 70))
-more_than_thirty <- nrow(filter(full_data_sf, offline_pat_pct <= 70))
 
 
 viridis_palette <- colorQuantile(palette = "viridis", domain = full_data_sf$older_popn_wtd, n = 5, reverse = TRUE)
 
+surgeries_included <- nrow(filter(full_data_sf, !is.na(practice_name)))
+
 full_data_under70 <- dplyr::filter(full_data_sf, offline_pat_pct < 70)
 full_data_over70 <- dplyr::filter(full_data_sf, offline_pat_pct >= 70)
+
+less_than_thirty <- nrow(full_data_over70)
+more_than_thirty <- nrow(full_data_under70)
 
 gp_map <- leaflet(full_data_sf) %>%
   addProviderTiles(providers$CartoDB.Positron, options = tileOptions(minZoom = 7, maxZoom = 14)) %>%
@@ -146,7 +148,7 @@ gp_map <- leaflet(full_data_sf) %>%
       "%</strong></td>
       </tr>",
       "<tr>
-      <td>Online transactions in Feb 2020:</td>
+      <td>Online transactions in April 2020:</td>
       <td style='text-align: right'><strong>",
       full_data_under70$total_use,
       "</strong></td>
@@ -195,7 +197,7 @@ gp_map <- leaflet(full_data_sf) %>%
       "%</strong></td>
       </tr>",
       "<tr>
-      <td>Online transactions in Feb 2020:</td>
+      <td>Online transactions in April 2020:</td>
       <td style='text-align: right'><strong>",
       full_data_over70$total_use,
       "</strong></td>
