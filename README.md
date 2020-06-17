@@ -28,7 +28,7 @@ tibble(files = list.files("data", recursive = TRUE)) %>%
 6 tmp/pomi_2021.zip                          1
 ```
 
-Look at `[pomi_data_dictionary][]` for descriptions of the Patient Online data.
+Look at pomi_data_dictionary.txt for descriptions of the Patient Online data.
 
 
 This project is written in `R` using:
@@ -48,4 +48,3 @@ This project is written in `R` using:
 [janitor]: https://sfirke.github.io/janitor/
 [sf]: https://r-spatial.github.io/sf/
 [leaflet]: https://rstudio.github.io/leaflet/
-[pomi_data_dictionary]: https://github.com/citizens-online/cohealthmapr/blob/master/pomi_data_dictionary.txt
