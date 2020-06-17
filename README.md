@@ -7,6 +7,8 @@ See:
 * [our blog post][co-www-blog] launching the map, and
 * [the map page and explanatory text][co-www-map].
 
+Data and webpage information last updated June 2020.
+
 Here's a listing of the contents of the `data` directory in my local repository.
 As you can see, the file sizes are quite large so I haven't uploaded this folder to GitHub.
 
@@ -19,14 +21,14 @@ tibble(files = list.files("data", recursive = TRUE)) %>%
   files                                size_mb
   <chr>                                  <dbl>
 1 gp-reg-pat-prac-sing-age-regions.csv       3
-2 POMI_APR2019_to_FEB2020.csv              163
-3 surgery_data_raw.csv                      18
-4 tmp/NSPCL_FEB20_UK_LU.csv                799
-5 tmp/ons_postcode_data.zip                 45
-6 tmp/pomi_1920.zip                          6
+2 ons_nspcl_data.Rds                        17
+3 POMI_APR2020_to_APR2020.csv               11
+4 surgery_data_raw.csv                      21
+5 tmp/ons_postcode_data.zip                206
+6 tmp/pomi_2021.zip                          1
 ```
 
-Look at [`pomi_data_dictionary.txt`][] for descriptions of the Patient Online data.
+Look at `[pomi_data_dictionary][]` for descriptions of the Patient Online data.
 
 
 This project is written in `R` using:
@@ -46,3 +48,4 @@ This project is written in `R` using:
 [janitor]: https://sfirke.github.io/janitor/
 [sf]: https://r-spatial.github.io/sf/
 [leaflet]: https://rstudio.github.io/leaflet/
+[pomi_data_dictionary]: https://github.com/citizens-online/cohealthmapr/blob/master/pomi_data_dictionary.txt

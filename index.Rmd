@@ -83,7 +83,7 @@ full_data_sf <- readRDS("full_data_sf.Rds")
 ccg_bounds <- readRDS("ccg_bounds.Rds")
 
 
-
+# use accessible palette from RColorBrewer
 viridis_palette <- colorQuantile(palette = "viridis", domain = full_data_sf$older_popn_wtd, n = 5, reverse = TRUE)
 
 surgeries_included <- nrow(filter(full_data_sf, !is.na(practice_name)))
