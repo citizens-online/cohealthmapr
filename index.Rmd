@@ -38,7 +38,9 @@ ccg_bounds <- readRDS(here("rds_data", "ccg_bounds.Rds"))
 
 source(here("R", "gather_data.R"))
 
-full_data_sf <- get_full_data(build = params$rebuild, update = params$update_data) %>% 
+full_data_sf <- get_full_data(
+  build = params$rebuild,
+  update = params$update_data) %>% 
   sf::st_as_sf(coords = c("easting", "northing"), crs = 27700) %>%  # 27700 = UK Grid CRS
   sf::st_transform(crs = 4326) %>%        # 4326 = lat/lon CRS
   sf::st_jitter(0.002)

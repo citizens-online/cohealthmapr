@@ -5,7 +5,7 @@ get_full_data <- function(build = FALSE, update = FALSE) {
   library(here)
 
   if (!build) {
-    readRDS(here("rds_data", "full_data_sf.Rds"))
+    readRDS(here("rds_data", "full_data.Rds"))
   } else {
     build_full_data(update = update)
   }
