@@ -7,7 +7,7 @@ See:
 * [our blog post][co-www-blog] launching the map, and
 * [the map page and explanatory text][co-www-map].
 
-Data and webpage information last updated June 2020.
+Data and webpage information last updated January 2021.
 
 Here's a listing of the contents of the `data` directory in my local repository.
 As you can see, the file sizes are quite large so I haven't uploaded this folder to GitHub.
