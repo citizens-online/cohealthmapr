@@ -3,4 +3,5 @@
 .RData
 .Ruserdata
 data/
+rds_data/
 ashfield_gps.csv

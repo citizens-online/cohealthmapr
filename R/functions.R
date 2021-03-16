@@ -7,6 +7,8 @@ load_packages <- function() {
   library(here)
   library(janitor, warn.conflicts = FALSE)
   library(lubridate, warn.conflicts = FALSE)
+  library(myrmidon)
+  library(purrr, warn.conflicts = FALSE)
   library(readr)
   library(rvest, warn.conflicts = FALSE)
   library(sf)
@@ -32,47 +34,114 @@ get_geolookup <- function(update = FALSE) {
 }
 
 
+
+# helper for get_surgery_data_urls() --------------------------------------
+
+get_surgery_data_months <- function(n) {
+
+  1:6 %>%
+    paste0(., "m") %>%
+    purrr::map_chr(~ paste0(
+      tolower(
+        month(
+          today() - period(.),
+          label = TRUE, abbr = FALSE)
+        ),
+      "-",
+      year(
+        today() - period(.)
+      )
+  ))
+}
+
+
+
 # helper for get_surgery_data() -------------------------------------------
 
-get_surgery_data_url <- function() {
+get_surgery_data_urls <- function(n) {
   paste0(
     "https://digital.nhs.uk/",
     "data-and-information/",
     "publications/",
     "statistical/",
     "patients-registered-at-a-gp-practice/",
-    tolower(month(today() - period("1m"), label = TRUE, abbr = FALSE)),
-    "-",
-    year(today() - period("1m"))
+    get_surgery_data_months(n)
   ) %>%
-    xml2::read_html() %>%
-    html_nodes("#resources ul li a") %>%
-    `[`(5) %>%
-    html_attr("href")
+    purrr::map_chr( ~ xml2::read_html(.) %>%
+      html_nodes("#resources ul.list li:nth-of-type(5) a") %>%
+      html_attr("href")
+    )
 }
 
 
 # get GP surgery data -----------------------------------------------------
 
+# updated monthly and not huge d/load so may as well update by default
+get_surgery_data <- function(last_n_months = 6) {
 
-get_surgery_data <- function(update = FALSE) {
-  # download and import csv from NHS Digital website
-
-
-  nhs_csv <- here("data/surgery_data_raw.csv")
-
-  if (update) {
-    nhs_csv_url <- get_surgery_data_url()
-    download.file(nhs_csv_url, nhs_csv)
-  }
 
   # get NHS surgery data - 5y age brackets ----------------------------------
-  # col_types was needed to be set because empty org_type cells confused readr
-  readr::read_csv(nhs_csv, col_types = "cccccccci") %>%
+
+  # read CSVs from NHS Digital website
+  get_surgery_data_urls(last_n_months) %>%
+    purrr::map_dfr(
+      # col_types need to be set because empty org_type cells confuse read_csv
+      ~ readr::read_csv(., col_types = "cccccccci")) %>%
+
+    # tidy up
     clean_names() %>%
     filter(org_type == "GP") %>% # only show GPs (not STP/CCG data)
-    select(-c(1:3, 5)) %>% # remove a few columns
-    rename("practice_code" = org_code)
+    select(-c(1, 3, 5)) %>% # remove some unneeded columns
+    rename(
+      "practice_code" = org_code) %>%
+    mutate(across(extract_date, dmy)) %>%
+
+    # sex = ALL would give us the total patients but we'll do it another way...
+    filter(!sex == "ALL") %>%
+    filter(!age_group_5 == "ALL") %>%
+
+    # ... add FEMALE and MALE totals together for each age group
+    group_by(across(c(1:3, 5))) %>%
+    summarise(across(number_of_patients, sum)) %>%
+    ungroup() %>%
+
+    # ... create period totals for each 5-year age bracket for each practice
+    pivot_wider(
+      names_from = age_group_5,
+      names_prefix = "patients_",
+      values_from = number_of_patients
+    ) %>%
+    clean_names() %>%
+    rowwise() %>%
+    mutate(total_patients = sum(c_across(starts_with("patients_")))) %>%
+    select(!patients_0_4:patients_10_14) %>%
+    mutate(over14_patients = sum(c_across(starts_with("patients_")))) %>%
+    select(!patients_15_19:patients_60_64) %>%
+    mutate(over64_patients = sum(c_across(starts_with("patients_")))) %>%
+    ungroup() %>%
+
+    ### OLDER AGE WEIGHTINGS
+    # Fairly arbitrary weightings to emphasise surgeries with more people
+    # in the oldest age brackets
+    # 0.6*1.1*1.25*1.4 ~= 1, not that it really matters
+    # but it's a kind of constraint I suppose
+    mutate(older_popn_wtd = round(
+      (patients_65_69 * 0.6) +
+        patients_70_74 +
+        (patients_75_79 * 1.1) +
+        (patients_80_84 * 1.25) +
+        ((patients_85_89 + patients_90_94 + patients_95) * 1.4)
+    )) %>%
+    select(!patients_65_69:patients_95) %>%
+    split(.$extract_date) %>%
+
+
+    # create quintile column
+    # set quintiles as factors so that they're not treated as
+    # a continuous variable in the map legend
+    map(~ mutate(., older_popn_quintile = as_factor(ntile(older_popn_wtd, 5)))) %>%
+    reduce(bind_rows)
+
 }
 
 
@@ -82,46 +151,55 @@ get_surgery_data <- function(update = FALSE) {
 # https://geoportal.statistics.gov.uk/datasets/ons-postcode-directory-august-2020
 
 get_postcode_data <- function(update = FALSE, download = FALSE) {
+
+
   if (!update) {
     readRDS(here("rds_data/onspd_data.Rds"))
   } else {
 
-    # get postcode data -------------------------------------------------------
-    onspd_zip <- here("data/tmp/ons_postcode_data.zip")
+    onspd_zip <- here("data/tmp/", "ons_postcode_data.zip")
 
     if (download) {
       file.remove(onspd_zip)
 
-      onspd_latest <- paste0(
-        "https://geoportal.statistics.gov.uk/",
-        "datasets/",
-        "ons-postcode-directory-",
-        get_latest_quarter()[1]
-      )
+      # Download and import postcode/LSOA lookup from ONS OpenGeography
+      # Latest is November 2020...
+      # but no need to regularly update as contains data for old postcodes
+      # https://geoportal.statistics.gov.uk/datasets/ons-postcode-directory-november-2020
+      onspd_url <- "https://www.arcgis.com/sharing/rest/content/items/5ec8889d7e3b4d77a9f77ab8ec27d2c2/data"
 
-      onspd_url <- xml2::read_html(onspd_latest) %>%
-        html_node("#simple_download_button") %>%
-        html_attr("href")
 
-      # download and import postcode/COA lookup from ONS OpenGeography
-      # onspd_url <- "https://www.arcgis.com/sharing/rest/content/items/a644dd04d18f4592b7d36705f93270d8/data"
-
-      # Important to set `mode = "wb"` here because the url does not end in `.zip`
-      # so R does not know it's a binary file (normally sets "wb" automatically
-      # for URLs that end in `.zip`)
-      # Beware, this is a 210MB download (zip) and ~1.3GB file when unzipped
+      # Important to set `mode = "wb"` here because the url does not end in
+      # `.zip` so R does not know it's a binary file (normally sets "wb"
+      #  automatically
+      #  for URLs that end in `.zip`)
+      #  Beware, this is a 210MB download (zip) and ~1.3GB file when unzipped
       download.file(onspd_url, onspd_zip, mode = "wb")
     }
 
     onspd_file <- paste0(
-      "Data/ONSPD_",
-      get_latest_quarter()[2],
+      "ONSPD_",
+      get_latest_quarter(),
       "_UK.csv"
     )
-    unzip(onspd_zip, exdir = here("data/tmp"), files = onspd_file)
 
-    readr::read_csv(here("data/tmp", onspd_file), col_types = "ccciiccccciiiiccccicccccccccccccccccccccccddcccicc") %>%
-      select("postcode" = pcds, "easting" = oseast1m, "northing" = osnrth1m, "oa11cd" = oa11, "lsoa11cd" = lsoa11)
+    unzip(onspd_zip, exdir = here("data/tmp"), files = paste0("Data/", onspd_file), junkpaths = TRUE)
+
+    onspd_data <- readr::read_csv(here("data/tmp", onspd_file), col_types = "ccciiccccciiiiccccicccccccccccccccccccccccddcccicc") %>%
+      # filter(is.na(doterm) | doterm > 201001) %>%
+      select(
+        "postcode" = pcds,
+        "easting" = oseast1m,
+        "northing" = osnrth1m,
+        # "oa11cd" = oa11,
+        "lsoa11cd" = lsoa11) %>%
+      filter(stringr::str_starts(lsoa11cd, "E"))
+
+    file.remove(here("data/tmp", onspd_file))
+
+    saveRDS(onspd_data, here::here("rds_data", "onspd_data.Rds"))
+
+    onspd_data
   }
 }
 
@@ -146,18 +224,60 @@ get_pomi_data <- function(update = FALSE) {
   }
 
   pomi_file <- unzip(pomi_zip, list = TRUE) %>% pull(Name)
+
+  cols_to_keep <- c(
+    "report_period_end",
+    "ccg_code",
+    "ccg_name",
+    "practice_code",
+    "practice_name",
+    "field",
+    "value")
+
+  fields_to_keep <- c(
+    "patient_list_size",
+    "new_pat_enabled",
+    "total_pat_enbld",
+    "total_use"
+  )
+
   read_csv(here("data", pomi_file)) %>%
     # only keep latest month's data
-    filter(report_period_end == tail(.$report_period_end, 1)) %>%
-    select(report_period_end, ccg_code, ccg_name, practice_code, practice_name, field, value) %>%
+    # filter(report_period_end == tail(.$report_period_end, 1)) %>%
+    select(all_of(cols_to_keep)) %>%
+    mutate(across(report_period_end, dmy)) %>%
+
+    # "EMIS have identified an error in the calculation of the specified fields
+    # (Total_Use, Pat_DetCodeRec_Use) for all months prior to July 2020 and are
+    # unable to provide corrected data.
+    # Counts for these fields from July 2020 onwards are therefore considerably
+    # higher than in previous months and are
+    # not comparable."
+    filter(report_period_end > "2020-06-30") %>%
+    mutate(date_join_field = report_period_end + period("1d")) %>%
+    rename(pomi_report_period_end = report_period_end) %>%
+    mutate(field = tolower(field)) %>%
+    filter(field %in% fields_to_keep) %>%
+
     pivot_wider(names_from = "field", values_from = "value") %>%
-    clean_names() %>%
+    # clean_names() %>%
+
     # transform surgery names to Title Case (from ALL CAPS)
-    mutate(across(practice_name, ~ str_to_title(.)))
+    mutate(across(practice_name, str_to_title)) %>%
+    # couple of fixes to the above
+    mutate(across(practice_name,
+                  ~ str_replace_all(., c("GP" = "Gp", "HC" = "Hc")))) %>%
+    # fix for a few surgeries where total patients enabled > list size!
+    mutate(across(
+      total_pat_enbld,
+      ~ if_else(total_pat_enbld > patient_list_size,
+                patient_list_size,
+                total_pat_enbld
+                )))
 }
 
 
-# helper function ---------------------------------------------------------
+# helper function for ONSPD ----------------------------------------------
 
 
 get_latest_quarter <- function() {
@@ -177,17 +297,15 @@ get_latest_quarter <- function() {
     get_year <- get_year - 1
   }
 
-  a <- paste0(
-    tolower(month(get_month, label = TRUE, abbr = FALSE)),
-    "-",
-    get_year
-  )
+  # a <- paste0(
+  #   tolower(month(get_month, label = TRUE, abbr = FALSE)),
+  #   "-",
+  #   get_year
+  # )
 
-  b <- paste0(
+  paste0(
     toupper(month(get_month, label = TRUE, abbr = TRUE)),
     "_",
     get_year
   )
-
-  return(c(a, b))
 }
