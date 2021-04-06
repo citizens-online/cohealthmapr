@@ -96,7 +96,8 @@ get_surgery_data <- function(last_n_months = 6) {
       "practice_code" = org_code) %>%
     mutate(across(extract_date, dmy)) %>%
 
-    # sex = ALL would give us the total patients but we'll do it another way...
+    # sex = ALL would give us the total patients but we'll do it the long way
+    # round because it'll give us the age band data we'll need further below
     filter(!sex == "ALL") %>%
     filter(!age_group_5 == "ALL") %>%
 
@@ -122,7 +123,7 @@ get_surgery_data <- function(last_n_months = 6) {
 
     ### OLDER AGE WEIGHTINGS
     # Fairly arbitrary weightings to emphasise surgeries with more people
-    # in the oldest age brackets
+    # in older age brackets
     # 0.6*1.1*1.25*1.4 ~= 1, not that it really matters
     # but it's a kind of constraint I suppose
     mutate(older_popn_wtd = round(

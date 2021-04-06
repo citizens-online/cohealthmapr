@@ -17,7 +17,7 @@ get_full_data <- function(build = FALSE, ...) {
 }
 
 
-build_full_data <- function(geo_update = FALSE, onspd_update = FALSE, onspd_download = FALSE, pomi_update = TRUE) {
+build_full_data <- function(geo_update = FALSE, onspd_update = FALSE, onspd_download = FALSE, pomi_update = TRUE, last_months = 6) {
   library(here)
   source(here("R", "functions.R"))
 
@@ -27,7 +27,7 @@ build_full_data <- function(geo_update = FALSE, onspd_update = FALSE, onspd_down
   onspd_data <- get_postcode_data(update = onspd_update, download = onspd_download)
 
   # surgery_data <- readRDS(here::here("rds_data/surgery_data-2021-02-15.Rds"))
-  surgery_data <- get_surgery_data(last_n_months = 6)
+  surgery_data <- get_surgery_data(last_n_months = last_months)
 
   saveRDS(surgery_data, here::here("rds_data", paste0("surgery_data-", lubridate::today(), ".Rds")))
 
@@ -57,7 +57,7 @@ build_full_data <- function(geo_update = FALSE, onspd_update = FALSE, onspd_down
     rev()
 
   saveRDS(full_data, here("rds_data", paste0("full_data-", lubridate::today(), ".Rds")))
-  readr::write_csv(full_data[[1]], here("full_data_gpsurgeries_202101.csv"))
+  readr::write_csv(full_data[[1]], here("full_data_gpsurgeries_latest.csv"))
 
   full_data
 }

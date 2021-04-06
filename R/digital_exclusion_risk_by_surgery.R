@@ -19,11 +19,17 @@ library(tmap)
 # import NHS data (prepared previously) and CO DE data  -------------------
 
 
+# full_data created by gather_data.R
 
-full_data <- readRDS(here::here("rds_data", "full_data-2021-02-16.Rds"))
+source(here("R", "gather_data.R"))
+
+full_data <- get_full_data(build = TRUE, geo_update = FALSE, onspd_update = FALSE, onspd_download = FALSE, pomi_update = TRUE)
+
+# full_data <- get_full_data(build = FALSE)
+# full_data <- readRDS(here::here("rds_data", "full_data-2021-02-16.Rds"))
 
 
-full_data_latest <- full_data$`2021-01-01`
+full_data_latest <- full_data[[1]]
 
 eng_lsoa_de_data <- readRDS(here::here("rds_data", "eng_lsoa_data_202102.Rds")) %>%
   select(lsoa11cd, lad20nm, rgn20nm, popn_adult, popn_over65, eimd_decile, lsoa_total_score, de_rank, centile, centile_score, decile, regional_decile)
@@ -31,18 +37,19 @@ eng_lsoa_de_data <- readRDS(here::here("rds_data", "eng_lsoa_data_202102.Rds")) 
 
 # How many LSOAs contain a GP Practice?
 length(unique(full_data_latest$lsoa11cd))
-# 5521
+# 5521 (Feb 2021)
+# 5507 (April 2021)
 
 length(unique(full_data_latest$lsoa11cd))/nrow(eng_lsoa_de_data)
 # 16.8% - about 1 in 6 LSOAs have a GP Practice
 
 full_data_latest %>%
   count(lsoa11cd) %>%
-  count(n) # %>%
+  count(n)  #%>%
   # filter(!n == 1) %>%
   # pull(nn) %>%
   # sum()
-# 853 GP Surgeries are not the only one in their LSOA
+# 850 GP Surgeries are not the only one in their LSOA
 
 eng_gps_digexcl_by_lsoa <- full_data_latest %>%
   count(lsoa11cd, name = "number_practices") %>%
@@ -51,12 +58,12 @@ eng_gps_digexcl_by_lsoa <- full_data_latest %>%
 eng_gps_digexcl_by_lsoa %>%
   count(decile)
 eng_gps_digexcl_by_lsoa %>%
-  count(decile, wt = number_gps)
+  count(decile, wt = number_practices)
 
 eng_gps_digexcl_by_lsoa %>%
   count(eimd_decile)
 eng_gps_digexcl_by_lsoa %>%
-  count(eimd_decile, wt = number_gps)
+  count(eimd_decile, wt = number_practices)
 
 
 regions <- eng_gps_digexcl_by_lsoa$rgn20nm %>%
@@ -65,17 +72,19 @@ regions <- eng_gps_digexcl_by_lsoa$rgn20nm %>%
 
 practices_by_lsoa_de_decile_summary_by_region <- eng_gps_digexcl_by_lsoa %>%
   split(.$rgn20nm) %>%
-  map2(seq_along(.), ~ count(.x, decile, wt = number_gps, name = regions[[.y]])) %>%
+  map2(seq_along(.), ~ count(.x, decile, wt = number_practices, name = regions[[.y]])) %>%
   reduce(left_join) %>%
   rowwise() %>%
-  mutate(Total = sum(c_across(where(is.numeric))))
+  mutate(Total = sum(c_across(where(is.numeric)))) %>%
+  ungroup()
 
 practices_by_lsoa_eimd_decile_summary_by_region <- eng_gps_digexcl_by_lsoa %>%
   split(.$rgn20nm) %>%
-  map2(seq_along(.), ~ count(.x, eimd_decile, wt = number_gps, name = regions[[.y]])) %>%
+  map2(seq_along(.), ~ count(.x, eimd_decile, wt = number_practices, name = regions[[.y]])) %>%
   reduce(left_join) %>%
   rowwise() %>%
-  mutate(Total = sum(c_across(where(is.numeric))))
+  mutate(Total = sum(c_across(where(is.numeric)))) %>%
+  ungroup()
 
 
 gp_practices_full <- full_data_latest %>%

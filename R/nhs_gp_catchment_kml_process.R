@@ -1,3 +1,8 @@
+
+# Where data was found ----------------------------------------------------
+
+
+
 # From
 # https://data.england.nhs.uk/dataset/gp-practice-submitted-inner-catchment-area-kml-file
 # Latest data: March 2019 (but page says it will be updated monthly)
@@ -6,6 +11,9 @@
 # Covid Vulnerability Index data:
 # https://digital.nhs.uk/data-and-information/data-collections-and-data-sets/data-collections/general-practice-data-collections
 
+
+
+# Load libraries ----------------------------------------------------------
 
 
 library(dplyr, warn.conflicts = FALSE)
@@ -18,10 +26,23 @@ library(tmap, quietly = TRUE)
 
 
 
+
+# old versions of NHS source data -----------------------------------------
+
+
+
 # gp_catchments_kml <- "https://files.digital.nhs.uk/assets/eDEC/eDecJan-Mar2020.kml"
 
 # nhs_gp_catchments <- sf::st_read(here("data", "GPSurgeryCatchmentAreas201903.kml")) %>%
 # nhs_gp_catchments <- sf::st_read(gp_catchments_kml)
+
+
+
+# most recent data --------------------------------------------------------
+
+
+
+# import from KML and tidy up results, filling in gaps where poss
 nhs_gp_catchments <- sf::st_read(here("data", "GPSurgeryCatchmentAreas202003.kml")) %>%
   # janitor::clean_names() %>%
   # dplyr::mutate(across(description, ~ dplyr::na_if(., "")))
@@ -42,6 +63,11 @@ nhs_gp_catchments <- sf::st_read(here("data", "GPSurgeryCatchmentAreas202003.kml
     TRUE ~ practice_code
   )))
 
+
+
+# bit of testing - ignore now? --------------------------------------------
+
+
 nhs_gp_catchments %>%
   dplyr::filter(is.na(practice_name))
   # dplyr::filter(practice_name == "")
@@ -55,9 +81,18 @@ nhs_gp_catchments %>%
 
 
 
+
+# bring in practices data created previously ------------------------------
+
+
+
 gp_practices_summary <- readRDS(here::here("rds_data", "full_data-2021-02-16.Rds")) %>%
   `[[`(1) %>%
   select(practice_code, practice_name, postcode, lsoa11cd, lad20nm, total_patients, older_popn_quintile, offline_pat_pct)
+
+
+# join catchments data to practice patient data ---------------------------
+
 
 nhs_gp_catchments2 <- nhs_gp_catchments %>%
   filter(is.na(practice_code)) %>%
@@ -113,6 +148,25 @@ gp_catchments_unified2 <- nhs_gp_catchments3 %>%
   st_sf()
 
 saveRDS(gp_catchments_unified2, here::here("rds_data", "gp_catchments_unified2.Rds"))
+
+
+
+# going to try the dplyr way ----------------------------------------------
+
+# the results from the sf::st_union approach above were not that great
+
+gp_catchments_unified3 <- nhs_gp_catchments3 %>%
+  group_by(practice_code) %>%
+  summarise()
+
+
+  sf::st_make_valid() %>%
+  tibble::enframe(name = "practice_code", value = "geometry") %>%
+  rowwise() %>%
+  mutate(geometry = st_sfc(c_across(geometry))) %>%
+  ungroup() %>%
+  left_join(gp_practices_summary, .) %>%
+  st_sf()
 
 
 tmap_mode("view")
