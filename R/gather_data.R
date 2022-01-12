@@ -4,12 +4,10 @@
 get_full_data <- function(build = FALSE, ...) {
   library(here)
 
-  latest_full_data <- dir(here("rds_data"), pattern = "^full_data.*Rds$") %>%
-    sort() %>%
-    `[[`(1)
-
-
   if (!build) {
+    latest_full_data <- dir(here("rds_data"), pattern = "^full_data.*Rds$") %>%
+      sort() %>%
+      `[[`(1)
     readRDS(here("rds_data", latest_full_data))
   } else {
     build_full_data(...)

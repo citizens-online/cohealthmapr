@@ -1,149 +1,241 @@
-# functions ---------------------------------------------------------------
+# Get GP practice data -----------------------------------------------------
 
+get_practice_data <- function(last_n_months = 6, update = TRUE) {
 
-load_packages <- function() {
-  library(dplyr, warn.conflicts = FALSE)
-  library(forcats)
-  library(here)
-  library(janitor, warn.conflicts = FALSE)
-  library(lubridate, warn.conflicts = FALSE)
-  library(myrmidon)
-  library(purrr, warn.conflicts = FALSE)
-  library(readr)
-  library(rvest, warn.conflicts = FALSE)
-  library(sf)
-  library(stringr)
-  library(tidyr)
-}
-
-
-
-# get David Kane's lookup csv from github ---------------------------------
-
-
-get_geolookup <- function(update = FALSE) {
   if (update) {
-    drkane_url <- "https://github.com/drkane/geo-lookups/raw/master/lsoa_la.csv"
+    # read CSVs from NHS Digital website
+    get_practice_data_urls(last_n_months) %>%
+      purrr::map_dfr(
+        # col_types need to be set because empty org_type cells confuse read_csv
+        ~ readr::read_csv(., col_types = "cccccccci", lazy = FALSE)) %>%
 
-    readr::read_csv(drkane_url) %>%
-      clean_names() %>%
-      select(lsoa11cd, lad20cd, lad20nm)
-  } else {
-    readRDS(here("rds_data", "geo_lookup.Rds"))
+      # tidy up
+      janitor::clean_names() %>%
+      dplyr::filter(org_type == "GP") %>% # only show GPs (not STP/CCG data)
+      dplyr::select(!c(publication, org_type, ons_code)) %>% # remove some unneeded columns
+      dplyr::rename(practice_code = org_code) %>%
+      dplyr::mutate(across(extract_date, lubridate::dmy)) %>%
+
+      # sex = ALL would give us the total patients but we'll do it the long way
+      # round because it'll give us the age band data we'll need further below
+      dplyr::filter(!sex == "ALL") %>%
+      dplyr::filter(!age_group_5 == "ALL") %>%
+
+      # ... add FEMALE and MALE totals together for each age group
+      dplyr::group_by(across(c(1:3, 5))) %>%
+      dplyr::summarise(across(number_of_patients, sum), .groups = "drop") %>%
+
+      # ... create period totals for each 5-year age bracket for each practice
+      tidyr::pivot_wider(
+        names_from = age_group_5,
+        names_prefix = "patients_",
+        values_from = number_of_patients
+      ) %>%
+
+      janitor::clean_names() %>%
+      myrmidon::postcode_data_join() %>%
+      dplyr::select(!country) %>%
+      myrmidon::add_msoa_names(welsh = FALSE) %>%
+      dplyr::relocate(msoa11hclnm, .after = msoa11cd) %>%
+
+      saveRDS(here::here("rds_data", paste0("practice_data-", lubridate::today(), ".Rds")))
   }
+
+  dir(here::here("rds_data"), pattern = "^practice_data.*Rds$") %>%
+    dplyr::last() %>%
+    here::here("rds_data", .) %>%
+    readRDS() %>%
+
+    dplyr::rowwise() %>%
+    dplyr::mutate(total_patients = sum(c_across(starts_with("patients_")))) %>%
+    dplyr::select(!c(patients_0_4, patients_5_9, patients_10_14)) %>%
+    dplyr::mutate(over14_patients = sum(c_across(starts_with("patients_")))) %>%
+    dplyr::select(!patients_15_19:patients_60_64) %>%
+    dplyr::mutate(over64_patients = sum(c_across(starts_with("patients_")))) %>%
+    dplyr::ungroup() %>%
+
+    # Weightings to emphasise practices with more people
+    # in older age brackets
+    # 0.6*1.1*1.25*1.4 ~= 1, not that it really matters
+    # but it's a kind of constraint I suppose
+    dplyr::mutate(age_score =
+                    (patients_65_69 +
+                       (patients_70_74 * 1.2) +
+                       (patients_75_79 * 1.33) +
+                       (patients_80_84 * 1.5) +
+                       ((patients_85_89 + patients_90_94 + patients_95) * 2)) /
+                    total_patients
+    ) %>%
+    dplyr::select(!patients_65_69:patients_95)
 }
 
+# Helper for get_practice_data() -------------------------------------------
 
-
-# helper for get_surgery_data_urls() --------------------------------------
-
-get_surgery_data_months <- function(n) {
-
-  1:6 %>%
-    paste0(., "m") %>%
-    purrr::map_chr(~ paste0(
-      tolower(
-        month(
-          today() - period(.),
-          label = TRUE, abbr = FALSE)
-        ),
-      "-",
-      year(
-        today() - period(.)
-      )
-  ))
-}
-
-
-
-# helper for get_surgery_data() -------------------------------------------
-
-get_surgery_data_urls <- function(n) {
+get_practice_data_urls <- function(n) {
   paste0(
     "https://digital.nhs.uk/",
     "data-and-information/",
     "publications/",
     "statistical/",
     "patients-registered-at-a-gp-practice/",
-    get_surgery_data_months(n)
+    get_practice_data_months(n)
   ) %>%
-    purrr::map_chr( ~ xml2::read_html(.) %>%
-      html_nodes("#resources ul.list li:nth-of-type(5) a") %>%
-      html_attr("href")
+    purrr::map_chr( ~ rvest::read_html(.) %>%
+                      rvest::html_elements("#resources div:nth-of-type(1) div:nth-of-type(5) div a") %>%
+                      rvest::html_attr("href")
     )
 }
 
+# Helper for get_practice_data_urls() --------------------------------------
 
-# get GP surgery data -----------------------------------------------------
+get_practice_data_months <- function(n) {
 
-# updated monthly and not huge d/load so may as well update by default
-get_surgery_data <- function(last_n_months = 6) {
-
-
-  # get NHS surgery data - 5y age brackets ----------------------------------
-
-  # read CSVs from NHS Digital website
-  get_surgery_data_urls(last_n_months) %>%
-    purrr::map_dfr(
-      # col_types need to be set because empty org_type cells confuse read_csv
-      ~ readr::read_csv(., col_types = "cccccccci")) %>%
-
-    # tidy up
-    clean_names() %>%
-    filter(org_type == "GP") %>% # only show GPs (not STP/CCG data)
-    select(-c(1, 3, 5)) %>% # remove some unneeded columns
-    rename(
-      "practice_code" = org_code) %>%
-    mutate(across(extract_date, dmy)) %>%
-
-    # sex = ALL would give us the total patients but we'll do it the long way
-    # round because it'll give us the age band data we'll need further below
-    filter(!sex == "ALL") %>%
-    filter(!age_group_5 == "ALL") %>%
-
-    # ... add FEMALE and MALE totals together for each age group
-    group_by(across(c(1:3, 5))) %>%
-    summarise(across(number_of_patients, sum)) %>%
-    ungroup() %>%
-
-    # ... create period totals for each 5-year age bracket for each practice
-    pivot_wider(
-      names_from = age_group_5,
-      names_prefix = "patients_",
-      values_from = number_of_patients
-    ) %>%
-    clean_names() %>%
-    rowwise() %>%
-    mutate(total_patients = sum(c_across(starts_with("patients_")))) %>%
-    select(!patients_0_4:patients_10_14) %>%
-    mutate(over14_patients = sum(c_across(starts_with("patients_")))) %>%
-    select(!patients_15_19:patients_60_64) %>%
-    mutate(over64_patients = sum(c_across(starts_with("patients_")))) %>%
-    ungroup() %>%
-
-    ### OLDER AGE WEIGHTINGS
-    # Fairly arbitrary weightings to emphasise surgeries with more people
-    # in older age brackets
-    # 0.6*1.1*1.25*1.4 ~= 1, not that it really matters
-    # but it's a kind of constraint I suppose
-    mutate(older_popn_wtd = round(
-      (patients_65_69 * 0.6) +
-        patients_70_74 +
-        (patients_75_79 * 1.1) +
-        (patients_80_84 * 1.25) +
-        ((patients_85_89 + patients_90_94 + patients_95) * 1.4)
-    )) %>%
-    select(!patients_65_69:patients_95) %>%
-    split(.$extract_date) %>%
-
-
-    # create quintile column
-    # set quintiles as factors so that they're not treated as
-    # a continuous variable in the map legend
-    map(~ mutate(., older_popn_quintile = as_factor(ntile(older_popn_wtd, 5)))) %>%
-    reduce(bind_rows)
-
+  seq(n) %>%
+    paste0(., "m") %>%
+    purrr::map_chr(~ paste0(
+      tolower(
+        lubridate::month(
+          lubridate::today() - lubridate::period(.),
+          label = TRUE, abbr = FALSE)
+      ),
+      "-",
+      lubridate::year(
+        lubridate::today() - lubridate::period(.)
+      )
+    ))
 }
+
+
+
+
+# Get NHS Digital POMI data (patient online services) ---------------------
+
+
+get_pomi_data <- function(update = TRUE) {
+
+
+  if (update) {
+    pomi_zip <- here::here("data", "pomi_data.zip")
+
+    # https://digital.nhs.uk/data-and-information/publications/statistical/mi-patient-online-pomi/current
+    pomi_url <- get_pomi_zip_url()
+
+    download.file(pomi_url, pomi_zip)
+    unzip(pomi_zip, exdir = here::here("data"))
+
+    pomi_file <- unzip(pomi_zip, list = TRUE) %>% pull(Name)
+
+    cols_to_keep <- c(
+      "report_period_end",
+      "ccg_code",
+      "ccg_name",
+      "practice_code",
+      "practice_name",
+      "field",
+      "value")
+
+
+    fields_to_keep <- c(
+      "patient_list_size",
+      "new_pat_enbld",
+      "total_pat_enbld",
+      "total_use"
+    )
+
+
+    here::here("data", pomi_file) %>%
+      readr::read_csv(col_types = "c--cccc-cd") %>%
+      dplyr::select(all_of(cols_to_keep)) %>%
+      dplyr::mutate(across(report_period_end, lubridate::dmy)) %>%
+
+      dplyr::mutate(date_join_field = report_period_end + lubridate::period("1d")) %>%
+      dplyr::rename(pomi_report_period_end = report_period_end) %>%
+      dplyr::mutate(across(field, tolower)) %>%
+      dplyr::filter(field %in% fields_to_keep) %>%
+      tidyr::pivot_wider(names_from = "field", values_from = "value") %>%
+      dplyr::rename(pomi_patient_list_size = patient_list_size) %>%
+      dplyr::rename(pomi_new_patients_enabled = new_pat_enbld) %>%
+      dplyr::rename(pomi_total_patients_enabled = total_pat_enbld) %>%
+      dplyr::rename(pomi_total_usage = total_use) %>%
+
+      # a fix for some practices where total patients enabled > list size!
+      dplyr::mutate(across(
+        pomi_total_patients_enabled,
+        ~ if_else(pomi_total_patients_enabled > pomi_patient_list_size,
+                  pomi_patient_list_size,
+                  pomi_total_patients_enabled
+        ))) %>%
+      saveRDS(here::here("rds_data", paste0("pomi_data-", lubridate::today(), ".Rds")))
+  }
+
+  dir(here::here("rds_data"), pattern = "^pomi_data.*Rds$") %>%
+    dplyr::last() %>%
+    here::here("rds_data", .) %>%
+    readRDS()
+}
+
+
+get_pomi_zip_url <- function() {
+  paste0(
+    "https://digital.nhs.uk/",
+    "data-and-information/",
+    "publications/",
+    "statistical/",
+    "mi-patient-online-pomi/",
+    "current"
+  ) %>%
+    rvest::read_html() %>%
+    rvest::html_elements("#resources div:nth-of-type(1) div:nth-of-type(1) div a") %>%
+    rvest::html_attr("href")
+}
+
+
+
+
+test_pomi_join <- function(df_lst) {
+
+  if (length(df_lst) > 0) {
+    if (all(is.na(df_lst[[1]]$practice_name))) { # indicates left_join failed
+      df_lst[1] <- NULL
+      test_pomi_join(df_lst)
+    }
+    else {
+      df_lst
+    }
+  } else {
+    usethis::ui_stop("It looks like none of the practice data and POMI data have matched up successfully. Maybe the dates need checking?")
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+# Poss no longer needed (using own postcodes.io function) -----------------
+
+
+# get David Kane's lookup csv from github ---------------------------------
+
+get_geolookup <- function(update = FALSE) {
+  if (update) {
+    drkane_url <- "https://github.com/drkane/geo-lookups/raw/master/lsoa_la.csv"
+
+    readr::read_csv(drkane_url) %>%
+      janitor::clean_names() %>%
+      dplyr::select(lsoa11cd, lad20cd, lad20nm)
+  } else {
+    readRDS(here::here("rds_data", "geo_lookup.Rds"))
+  }
+}
+
+
 
 
 # get ONS Postcode Directory lookup ---------------------------------------
@@ -206,84 +298,12 @@ get_postcode_data <- function(update = FALSE, download = FALSE) {
 
 
 
-# get NHS Digital POMI data (patient online services) ---------------------
-
-
-get_pomi_data <- function(update = FALSE) {
-
-  # get patient online data (POMI) ------------------------------------------
-
-  pomi_zip <- here("data/tmp/pomi_2021.zip")
-
-  if (update) {
-    # https://digital.nhs.uk/data-and-information/data-collections-and-data-sets/data-collections/pomi
-    # this will hopefully be the right URL until ~April 2021
-    pomi_url <- "https://digital.nhs.uk/binaries/content/assets/website-assets/data-and-information/data-collections/pomi/pomi_2021.zip"
-
-    download.file(pomi_url, pomi_zip)
-    unzip(pomi_zip, exdir = here("data"))
-  }
-
-  pomi_file <- unzip(pomi_zip, list = TRUE) %>% pull(Name)
-
-  cols_to_keep <- c(
-    "report_period_end",
-    "ccg_code",
-    "ccg_name",
-    "practice_code",
-    "practice_name",
-    "field",
-    "value")
-
-  fields_to_keep <- c(
-    "patient_list_size",
-    "new_pat_enabled",
-    "total_pat_enbld",
-    "total_use"
-  )
-
-  read_csv(here("data", pomi_file)) %>%
-    # only keep latest month's data
-    # filter(report_period_end == tail(.$report_period_end, 1)) %>%
-    select(all_of(cols_to_keep)) %>%
-    mutate(across(report_period_end, dmy)) %>%
-
-    # "EMIS have identified an error in the calculation of the specified fields
-    # (Total_Use, Pat_DetCodeRec_Use) for all months prior to July 2020 and are
-    # unable to provide corrected data.
-    # Counts for these fields from July 2020 onwards are therefore considerably
-    # higher than in previous months and are
-    # not comparable."
-    filter(report_period_end > "2020-06-30") %>%
-    mutate(date_join_field = report_period_end + period("1d")) %>%
-    rename(pomi_report_period_end = report_period_end) %>%
-    mutate(field = tolower(field)) %>%
-    filter(field %in% fields_to_keep) %>%
-
-    pivot_wider(names_from = "field", values_from = "value") %>%
-    # clean_names() %>%
-
-    # transform surgery names to Title Case (from ALL CAPS)
-    mutate(across(practice_name, str_to_title)) %>%
-    # couple of fixes to the above
-    mutate(across(practice_name,
-                  ~ str_replace_all(., c("GP" = "Gp", "HC" = "Hc")))) %>%
-    # fix for a few surgeries where total patients enabled > list size!
-    mutate(across(
-      total_pat_enbld,
-      ~ if_else(total_pat_enbld > patient_list_size,
-                patient_list_size,
-                total_pat_enbld
-                )))
-}
-
-
 # helper function for ONSPD ----------------------------------------------
 
 
 get_latest_quarter <- function() {
-  this_month <- month(today())
-  get_year <- year(today())
+  this_month <- lubridate::month(lubridate::today())
+  get_year <- lubridate::year(lubridate::today())
 
   if (this_month %in% 3:5) {
     get_month <- 2
@@ -305,7 +325,7 @@ get_latest_quarter <- function() {
   # )
 
   paste0(
-    toupper(month(get_month, label = TRUE, abbr = TRUE)),
+    toupper(lubridate::month(get_month, label = TRUE, abbr = TRUE)),
     "_",
     get_year
   )

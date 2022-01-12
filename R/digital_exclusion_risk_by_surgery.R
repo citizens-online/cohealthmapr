@@ -125,6 +125,8 @@ lsoa_gp_centroids <- gp_practices_sf %>%
               select(!easting:northing), .) %>%
   st_as_sf(crs = 27700)
 
+
+# bind to centroids for LSOAs that only have a single practice ------------
 gp_practices_centroids <- lsoa_gp_centroids %>%
   bind_rows(
     gp_practices_sf %>%
@@ -147,18 +149,12 @@ gp_practices_centroids %>%
 gp_practices_centroids <- readRDS(here::here("rds_data", "gp_practices_centroids.Rds"))
 
 
-# gp_practices_centroids_regional <- gp_practices_centroids %>%
-#   dplyr::group_split(rgn20nm, .keep = FALSE) %>%
-#   set_names(regions)
-
-# simpler and same result...
 gp_practices_centroids_regional <- gp_practices_centroids %>%
   split(.$rgn20nm)
 
 # run this as a job (see R/get_lsoa_bounds_job.R)
 # ought to have got these with Shape_Area!! Saves calculating later.
 get_rgn_lsoa_bounds <- function(region) {
-
   eng_lsoa_de_data %>%
     filter(rgn20nm == region) %>%
     pull(lsoa11cd) %>%
@@ -172,16 +168,7 @@ get_rgn_lsoa_bounds <- function(region) {
     sf::st_transform(crs = 27700)
 }
 
-# use readRDS instead of downloading all this!
-# regional_lsoa_boundaries <- regions %>%
-#   purrr::map(get_rgn_lsoa_bounds) %>%
-#   purrr::reduce(bind_rows) %>%
-#   left_join(eng_lsoa_de_data) %>%
-#   split(.$rgn20nm)
-
-# set_names(regional_lsoa_boundaries, regions)
-
-# saveRDS(regional_lsoa_boundaries, here::here("rds_data", "regional_lsoa_boundaries.Rds"))
+saveRDS(regional_lsoa_boundaries, here::here("rds_data", "regional_lsoa_boundaries.Rds"))
 
 
 regional_lsoa_boundaries <- readRDS(here::here("rds_data", "regional_lsoa_boundaries.Rds"))
@@ -196,7 +183,7 @@ regional_boundaries <- readRDS(here::here("rds_data", "regional_boundaries.Rds")
 #   map(~ sf::st_union(., by_feature = FALSE))
 # set_names(regional_boundaries, regions)
 
-saveRDS(regional_boundaries, here::here("rds_data", "regional_boundaries.Rds"))
+# saveRDS(regional_boundaries, here::here("rds_data", "regional_boundaries.Rds"))
 
 
 
@@ -396,7 +383,9 @@ calculate_overlap_pcts <- function(df1, df2, df3, min_overlap_pct) {
     b <- df3 %>%
       filter(voronoi_lsoa11cd %in% df1$voronoi_code)
 
-    area_a <- st_area(a)
+    # area_a <- st_area(a)
+    area_a <- a %>%
+      pull(shape_area)
 
     # intersection_area <- st_geometry(b) %>%
     intersection_area <- st_intersection(a, b) %>%
@@ -410,7 +399,7 @@ calculate_overlap_pcts <- function(df1, df2, df3, min_overlap_pct) {
   }
 
   map(split_list, ~ find_intersect_sizes(., df2, df3)) %>%
-    reduce(bind_rows)
+    reduce(bind_rows) # %>%
     # filter(coverage_pct >= min_overlap_pct)
 }
 
@@ -418,6 +407,7 @@ calculate_overlap_pcts <- function(df1, df2, df3, min_overlap_pct) {
 
 
 # run as a job - takes ages! Produces *lots* of sf assumption warnings
+# see: R/calc_intersects_job.R
 voronoi_overlap_pcts <- list(
   voronoi_intersects_tidy,    # list of 9 tibbles
   regional_lsoa_boundaries,   # list of 9 sf data frames

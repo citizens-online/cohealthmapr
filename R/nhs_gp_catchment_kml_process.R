@@ -6,9 +6,10 @@
 # From
 # https://data.england.nhs.uk/dataset/gp-practice-submitted-inner-catchment-area-kml-file
 # Latest data: March 2019 (but page says it will be updated monthly)
+# KML direct link: https://data.england.nhs.uk/dataset/7327f192-be9f-42b8-81f8-9764f96f9116/resource/c697b37d-4e5e-4502-893f-e38bb5d49b89/download/2019_03_kml_data.kml
 
 # found updated version (March 2020) via British Red Cross
-# Covid Vulnerability Index data:
+# Covid Vulnerability Index data (but this is worse data?)
 # https://digital.nhs.uk/data-and-information/data-collections-and-data-sets/data-collections/general-practice-data-collections
 
 

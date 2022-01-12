@@ -5,7 +5,6 @@ library(jogger)
 
 
 get_rgn_lsoa_bounds <- function(region) {
-
   eng_lsoa_de_data %>%
     filter(rgn20nm == region) %>%
     pull(lsoa11cd) %>%
