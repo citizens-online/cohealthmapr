@@ -1,5 +1,5 @@
 ---
-title: "Age and digital exclusion risk: a map of GP surgeries in England"
+title: "Age and digital exclusion risk: a map of GP practices in England"
 output:
   html_document:
     theme: default
@@ -13,118 +13,211 @@ output:
     include:
       in_header: co_header.html
 params:
-  rebuild: FALSE
-  update_data: FALSE
-  latest_pomi: "August 2020"
-      
+  refresh_data: FALSE # if FALSE then the below params have no effect
+  age_data_update: FALSE
+  pomi_data_update: FALSE
+  months_of_data: 6
 ---
 
 ```{r setup, include = FALSE, echo = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-library(dplyr, warn.conflicts = FALSE)
 library(here)
-library(extrafont)
+source(here("R", "gather_data_new.R"))
+
+library(basemaps)
 library(htmlwidgets)
 library(icon)
 library(leaflet)
 library(leaflet.extras)
-library(lubridate)
 library(scales, warn.conflicts = FALSE)
 library(sf)
+library(tmap)
 
 
-ccg_bounds <- readRDS(here("rds_data", "ccg_bounds.Rds"))
+ccg_bounds <- readRDS(here("rds_data", "ccg_bounds.Rds")) %>% 
+  sf::st_transform(4326) # https://rstudio.github.io/leaflet/projections.html
 
-source(here("R", "gather_data.R"))
+full_data <- get_full_data(
+  refresh = params$refresh_data,
+  pomi_data_update = params$pomi_data_update,
+  age_data_update = params$age_data_update,
+  months = params$months_of_data
+  )
 
-full_data_sf <- get_full_data(
-  build = params$rebuild,
-  update = params$update_data) %>% 
-  sf::st_as_sf(coords = c("easting", "northing"), crs = 27700) %>%  # 27700 = UK Grid CRS
-  sf::st_transform(crs = 4326) %>%        # 4326 = lat/lon CRS
+# just get the most recent month available's data
+full_data_latest <- full_data[[1]]
+
+practices_included <- nrow(filter(full_data_latest, !is.na(practice_name)))
+practices_excluded <- filter(full_data_latest, is.na(practice_name))
+
+full_data_latest <- full_data_latest %>% 
+  filter(!is.na(practice_name))
+
+full_data_sf <- full_data_latest %>% 
+  dplyr::filter(!is.na(eastings)) %>% 
+  sf::st_as_sf(
+    coords = c("eastings", "northings"),
+    crs = 27700
+    ) %>% 
+  sf::st_transform(4326) %>%
   sf::st_jitter(0.002)
 
 
-surgeries_included <- nrow(filter(full_data_sf, !is.na(practice_name)))
-latest_pomi <- params$latest_pomi
 
-nhs_reg_data_url <- paste0(
+age_data_month <- tolower(lubridate::month(head(full_data_latest$extract_date, 1), label = TRUE, abbr = FALSE))
+age_data_year <- lubridate::year(head(full_data_latest$extract_date, 1))
+age_data_url <- paste0(
     "https://digital.nhs.uk/",
     "data-and-information/",
     "publications/",
     "statistical/",
     "patients-registered-at-a-gp-practice/",
-    tolower(month(today() - period("1m"), label = TRUE, abbr = FALSE)),
+    age_data_month,
     "-",
-    year(today() - period("1m"))
+    age_data_year
   )
-nhs_reg_data_date <- paste(
-  month(today() - period("1m"), label = TRUE, abbr = FALSE),
-  year(today() - period("1m"))
-)
+age_data_date <- paste(age_data_month, age_data_year)
 
+# adjust date to match (POMI issued on last date of month, practice data issued on first of month)
+latest_pomi_date <- head(full_data_latest$extract_date, 1) - lubridate::period("1d")
+
+pomi_data_month <- lubridate::month(latest_pomi_date, label = TRUE, abbr = FALSE)
+pomi_data_year <- lubridate::year(latest_pomi_date)
+median_enabled <- median(full_data_latest$pct_patients_pomi_enabled)
 ```
+
 
 #### {#icons}
 
-* [`r icon::ii_social_github()`](https://github.com/citizens-online/cohealthmapr)
-* [`r icon::ii_social_twitter()`](https://twitter.com/citizensonline1)
-* [`r icon::ii_home()`](https://www.citizensonline.org.uk/)
+* [`r icon::ionicons("logo-github")`](https://github.com/citizens-online/cohealthmapr)
+* [`r icon::ionicons("logo-twitter")`](https://twitter.com/citizensonline1)
+* [`r icon::ionicons("home")`](https://www.citizensonline.org.uk/)
 
 ### About
 
-Older people and those with underlying health conditions are at higher risk of being affected by the Coronavirus.
+Older people and those with underlying health conditions are at higher risk of being affected by Covid-19.
 These groups of people were already at higher risk of being socially isolated.
 Now they are potentially cut off from many of the usual sources of essential support, and they are less likely to have the skills, confidence and devices to get help online.
 
 Public sector and community groups are working hard to support more vulnerable people in society, and we know they are looking for information on how best to target that work.
 We are determined to put our knowledge and experience to good use, and to help provide that information.
 
-The map below shows `r comma(surgeries_included)` of `r comma(nrow(full_data_sf))` GP surgeries in England.
-It is designed to help identify areas where there are more people who don’t tend to use digital tools and services, or who are not online.
-We’ve used NHS data on registration for online GP services to make the map.
+The map below shows `r comma(practices_included)` GP practices in England for which data was available at the last update (`r pomi_data_month` `r pomi_data_year`).
+It is designed to help identify areas where there are more people who don’t tend to use digital tools and services, including those who are not active online at all.
+To make the map, we've used NHS England data on how many patients are 'enabled' to use Patient Online GP services, as well as data about the age profile of practices' patient lists.
+
+#### Caveat
 
 We acknowledge that registration alone does not imply confident use of online services.
-Equally, where people have _not_ registered for online GP services, this may not indicate a lack of necessary digital skills or access to devices/connectivity.
+Equally, where people are _not_ enabled for online GP services, this may not indicate a lack of necessary digital skills or access to devices/connectivity.
 
 
 ### Guidance on using the map
 
-* Each surgery is represented by a coloured circle on the map.
-The larger the circle, the more patients that surgery has, in total.
-* The circles have a <span style="border: 2px solid #ee1289; border-radius: 4px;">&nbsp;pink&nbsp;</span> border if less than 30% of patients are registered for an online service.
-**We believe these surgeries should be a priority for targeted digital skills support, as on balance they are more likely to have patients who lack digital skills**.
+* Each practice is represented by a coloured circle on the map.
+The larger the circle, the more patients that practice has, in total.
+* The circles have a <span style="border: 2px solid #ee1289; border-radius: 4px;">&nbsp;pink&nbsp;</span> border if less than 40% of patients are enabled for an online service.
+**We believe these practices should be a priority for targeted digital skills support, as on balance they are more likely to have patients who lack digital skills**.
 Within this group, those with higher numbers of older patients may be further prioritised.
-* The surgeries with more than 30% of patients registered for online services have a <span style="border: 2px solid #00c5cd; border-radius: 4px;">&nbsp;turquoise&nbsp;</span> border.
-* Each surgery is additionally colour-coded according to the number of people aged 65+ on its register (see map legend);
+* The practices with more than 40% of patients enabled for online services have a <span style="border: 2px solid #00c5cd; border-radius: 4px;">&nbsp;turquoise&nbsp;</span> border.
+* Each practice is additionally colour-coded according to the proportion of people aged 65+ on its register (see map legend);
 however, due to scale, these colours may only become visible when you zoom in.
 For example, a <span style="color: `r viridisLite::viridis(n = 5)[[1]]`;">&nbsp;purple&nbsp;</span>
-fill to the circle means the surgery is in the top (“oldest”) 20% of surgeries by age in England; a <span style="color: `r viridisLite::viridis(n = 5)[[5]]`; background-color: #abc;">&nbsp;yellow&nbsp;</span>
-fill means it is among the 20% with the lowest numbers of patients aged 65+.
-* Clicking on a surgery circle will bring up a bubble with more information.
+fill to the circle means the practice is in the top (“oldest”) 20% of practices by age in England; a <span style="color: `r viridisLite::viridis(n = 5)[[5]]`; background-color: #abc;">&nbsp;yellow&nbsp;</span>
+fill means it is among the 20% with the lowest proportions of patients aged 65+.
+* Clicking on a practice circle will bring up a bubble with more information.
 
 The `R` source code that generates the map is viewable by clicking the "Code" button, below right.
-All the code for this project can be found in the [project repository `r icon::ii_social_github()`](https://github.com/citizens-online/cohealthmapr).
+All the code for this project can be found in the [project repository `r icon::ionicons("logo-github")`](https://github.com/citizens-online/cohealthmapr).
 
-The final data that is used for the GP surgeries information on the map can be downloaded directly,
-[here `r icon::ii_document()` (csv format, 1.2MB)](https://github.com/citizens-online/cohealthmapr/raw/master/full_data_gpsurgeries.csv).
+The final data that is used for the GP practices information on the map can be downloaded directly,
+[here `r icon::ionicons("document")` (csv format, 9.8MB)](https://github.com/citizens-online/cohealthmapr/raw/master/full_data_gppractices_latest.csv).
 
-<span style = "font-size: 1.2rem">[Skip to below map](#git)</span>
+```{r essex-static-map, eval = FALSE}
 
-```{r gp_map, out.width="100%", out.height = "750px"}
+basemaps::set_defaults(map_service = "carto", map_type = "light", map_res = 1)
 
-# use accessible palette from RColorBrewer
-viridis_palette <- colorQuantile(palette = "viridis", domain = full_data_sf$older_popn_wtd, n = 5, reverse = TRUE)
+
+essex_boundary <- jogger::geo_get("lad", "Essex", "cty", spatial_ref = 3857, return_style = "minimal") %>% 
+  sf::st_union()
+
+bbox_expanded <- myrmidon::expand_sf_bbox(essex_boundary, c(0, 0, 0, 0.34))
+basemap <- basemaps::basemap_stars(bbox_expanded)
+
+bbox_crop <- myrmidon::expand_sf_bbox(essex_boundary, 0.05)
+basemap_crop <- basemap %>% 
+  sf::st_crop(bbox_crop)
 
 full_data_under70 <- dplyr::filter(full_data_sf, offline_pat_pct < 70)
 full_data_over70 <- dplyr::filter(full_data_sf, offline_pat_pct >= 70)
 
-less_than_thirty <- nrow(full_data_over70)
-more_than_thirty <- nrow(full_data_under70)
+tm_shape(basemap_crop) +
+  tm_rgb() +
+  tm_shape(sf::st_join(ccg_bounds, full_data_sf)) +
+  tm_borders(col = "#6C7B8B", lwd = 1) +
+  tm_shape(full_data_under70) +
+  tm_markers(
+    col = "older_popn_quintile",
+    size = "total_patients",
+    scale = 1.2,
+    perceptual = TRUE,
+    shape = 21,
+    alpha = 0.75,
+    border.col = "#00c5cd",
+    border.lwd = 2,
+    border.alpha = 0.9,
+    palette = "-viridis",
+    style = "cat",
+    legend.size.show = TRUE,
+    legend.col.show = TRUE,
+    legend.col.is.portrait = FALSE
+    ) +
+  tm_shape(full_data_over70) +
+  tm_markers(
+    col = "older_popn_quintile",
+    size = "total_patients",
+    scale = 1.2,
+    perceptual = TRUE,
+    shape = 21,
+    alpha = 0.75,
+    border.col = "#ee1289",
+    border.lwd = 2,
+    border.alpha = 0.9,
+    palette = "-viridis",
+    style = "cat",
+    legend.size.show = FALSE,
+    legend.col.show = FALSE
+    ) +
+  tm_shape(essex_boundary) +
+  tm_borders("cornflowerblue", lwd = 2) +
+  tm_layout(
+    title = "",
+    legend.outside = TRUE,
+    legend.outside.position = "bottom",
+    legend.stack = "horizontal"
+    )
+  
 
-gp_map <- leaflet(full_data_sf) %>%
-  addProviderTiles(providers$CartoDB.Positron, options = tileOptions(minZoom = 7, maxZoom = 14)) %>%
+```
+
+<span style = "font-size: 1.2rem">[Skip to below map](#git)</span>
+
+### Map
+
+```{r gp_map, out.width="100%", out.height = "750px"}
+
+# use accessible palette from RColorBrewer
+viridis_palette <- leaflet::colorQuantile(palette = "viridis", domain = full_data_sf$age_score, n = 5, reverse = TRUE)
+
+full_data_under40 <- dplyr::filter(full_data_sf, pct_patients_pomi_enabled < 40)
+full_data_over40 <- dplyr::filter(full_data_sf, pct_patients_pomi_enabled >= 40)
+
+less_than_forty <- nrow(full_data_under40)
+more_than_forty <- nrow(full_data_over40)
+
+gp_map <- leaflet::leaflet(full_data_sf) %>%
+  addProviderTiles(providers$CartoDB.Positron, options = tileOptions(minZoom = 6, maxZoom = 14)) %>%
   addPolygons(
     data = ccg_bounds,
     stroke = TRUE,
@@ -137,102 +230,106 @@ gp_map <- leaflet(full_data_sf) %>%
     label = ~ccg20nm
   ) %>%
   addCircles(
-    data = full_data_under70,
+    data = full_data_over40,
     radius = ~ `^`(total_patients, 0.625),
     stroke = TRUE,
     color = "#00c5cd",
     weight = 3,
     opacity = 0.75,
     fill = TRUE,
-    fillColor = ~ viridis_palette(older_popn_wtd),
+    fillColor = ~ viridis_palette(age_score),
     fillOpacity = 0.75,
     label = ~practice_name,
-    group = "> 30% 'online' (blue border)",
+    group = "> 40% 'online' (blue border)",
     popup = paste0(
       "<table>
       <tr><th><h3>",
-      full_data_under70$practice_name,
+      full_data_over40$practice_name,
       "</h3>
       </th>
       <th style = 'font-weight: 400;'>",
-      full_data_under70$postcode,
+      full_data_over40$postcode,
       "</th>
       </tr>",
       "<tr>
       <td>Total number of patients:</td>
       <td style='text-align: right'><strong>",
-      comma(full_data_under70$total_patients, accuracy = 1),
+      comma(full_data_over40$total_patients, accuracy = 1),
       "</strong></td>
       </tr>",
       "<tr>
       <td>Number of patients aged 65+:</td>
       <td style='text-align: right'><strong>",
-      comma(full_data_under70$older_popn_unwtd, accuracy = 1),
+      comma(full_data_over40$over64_patients, accuracy = 1),
       "</strong></td>
       </tr>",
       "<tr>
-      <td>% patients <em>not</em> reg'd for an online service:</td>
+      <td>% patients enabled for online services:</td>
       <td style='text-align: right'><strong>",
-      full_data_under70$offline_pat_pct,
+      full_data_over40$pct_patients_pomi_enabled,
       "%</strong></td>
       </tr>",
       "<tr>
       <td>Online transactions in ",
-      latest_pomi,
+      pomi_data_month,
+      " ",
+      pomi_data_year,
       ":</td>
       <td style='text-align: right'><strong>",
-      comma(full_data_under70$total_use, accuracy = 1),
+      comma(full_data_over40$pomi_total_usage, accuracy = 1),
       "</strong></td>
       </tr>
       </table>"
     )
   ) %>%
   addCircles(
-    data = full_data_over70,
+    data = full_data_under40,
     radius = ~ `^`(total_patients, 0.625),
     stroke = TRUE,
     color = "#ee1289",
     weight = 3,
     opacity = 0.75,
     fill = TRUE,
-    fillColor = ~ viridis_palette(older_popn_wtd),
+    fillColor = ~ viridis_palette(age_score),
     fillOpacity = 0.75,
     label = ~practice_name,
-    group = "< 30% 'online' (pink border)",
+    group = "< 40% 'online' (pink border)",
     popup = paste0(
       "<table>
       <tr><th><h3>",
-      full_data_over70$practice_name,
+      full_data_under40$practice_name,
       "</h3></th>
       <th style = 'font-weight: 400;'>",
-      full_data_over70$postcode,
+      full_data_under40$postcode,
       "</th>
       </tr>",
       "<tr>
       <td>Total number of patients:</td>
       <td style='text-align: right'><strong>",
-      comma(full_data_over70$total_patients, accuracy = 1),
+      comma(full_data_under40$total_patients, accuracy = 1),
       "</strong></td>
       </tr>",
       "<tr>
       <td>Number of patients aged 65+:</td>
       <td style='text-align: right'><strong>",
-      comma(full_data_over70$older_popn_unwtd, accuracy = 1),
+      comma(full_data_under40$over64_patients, accuracy = 1),
       "</strong>
       </td>
       </tr>",
       "<tr>
-      <td>% patients <em>not</em> reg'd for an online service:</td>
+      <td>% patients enabled for online services:</td>
       <td style='text-align: right'><strong>",
-      full_data_over70$offline_pat_pct,
+      full_data_under40$pct_patients_pomi_enabled,
       "%</strong></td>
       </tr>",
       "<tr>
       <td>Online transactions in ",
-      latest_pomi,
+      pomi_data_month,
+      " ",
+      pomi_data_year,
       ":</td>
       <td style='text-align: right'><strong>",
-      comma(full_data_over70$total_use, accuracy = 1),
+      comma(full_data_under40$pomi_total_usage, accuracy = 1),
       "</strong></td>
       </tr>
       </table>"
@@ -240,8 +337,8 @@ gp_map <- leaflet(full_data_sf) %>%
   ) %>%
   addLayersControl(
     overlayGroups = c(
-      "< 30% 'online' (pink border)",
-      "> 30% 'online' (blue border)",
+      "< 40% 'online' (pink border)",
+      "> 40% 'online' (blue border)",
       "CCG boundaries"
     ),
     position = "topleft",
@@ -252,20 +349,20 @@ gp_map <- leaflet(full_data_sf) %>%
     position = "topright",
     colors = viridisLite::viridis(5, direction = -1, alpha = NULL),
     opacity = 0.75,
-    title = "Circle fill colour: number of patients<br />aged 65+ (quintiles; 5 = most)",
+    title = "Circle fill colour: proportion of patients<br />aged 65+ (quintiles: 5 = most)",
     labels = as.character(1:5)
   ) %>%
   leaflet.extras::addFullscreenControl(
     position = "topleft",
     pseudoFullscreen = FALSE
   ) %>%
-  addMiniMap(
+  leaflet::addMiniMap(
     tiles = providers$CartoDB.Positron,
     zoomLevelOffset = -4,
     toggleDisplay = TRUE
   )
 
-saveWidget(gp_map, "leaflet_widget1.html")
+htmlwidgets::saveWidget(gp_map, "leaflet_widget1.html")
 gp_map
 ```
 
@@ -282,33 +379,31 @@ We also welcome comments and feedback about the map, and how it might be made mo
 
 ### Notes on our approach
 
-We have applied weightings to the reported populations when ranking the surgeries.
+We have applied weightings to the reported populations when ranking the practices.
 Patient numbers in older age brackets are multiplied by larger amounts in our model, because of their increased risk of digital exclusion and vulnerability to Covid-19.
 However, the number of patients aged 65+ reported in the pop-up data bubbles is the unweighted (actual) number.
 
-The map uses the *national* ranking of each surgery by age: _i.e._ the purple fill means it is in the top 20% in England by number of older patients.
-We can provide maps where instead the top 20% is identified within a regional or more local set of GP surgeries.
+The map uses the *national* ranking of each practice by age: _i.e._ the purple fill means it is in the top 20% in England by proportion of older patients.
+We can provide maps where instead the top 20% is identified within a regional or more local set of GP practices.
 
-Of the `r comma(surgeries_included)` surgeries where there is Patient Online data, `r comma(less_than_thirty)` (`r round(less_than_thirty*100/surgeries_included)`%) have *less than* 30% of patients registered for online services, and `r comma(more_than_thirty)` (`r round(more_than_thirty*100/surgeries_included)`%) have more than 30% of patients registered.
-30% is chosen as it is relatively near to the median registration rate of `r round(100 - median(full_data_sf$offline_pat_pct, na.rm = TRUE), 1)`% and the current overall national rate of 31.75% (`r latest_pomi`).
+Of the `r comma(practices_included)` practices where there is Patient Online data, `r comma(less_than_forty)` (`r percent(less_than_forty/practices_included)`) have *less than* 40% of patients enabled for online services, and `r comma(more_than_forty)` (`r percent(more_than_forty/practices_included)`) have 40% or more of patients enabled.
+40% is chosen as it is very near to the current median registration rate. The current (October 2021) _overall_ national rate for England is 41.99% ([Percentage of patients enabled for at least one online service](https://digital.nhs.uk/data-and-information/publications/statistical/mi-patient-online-pomi/current).)
 
-Where we refer to “online services” we mean:
-making GP appointments,
+Where we refer to "online services" we mean:
+booking/cancelling GP appointments,
 ordering repeat prescriptions,
-and/or looking up personal details.
+and/or accessing information in personal records.
 
 #### Data sources
 
-1. Surgery name, size and location data are obtained from
-[NHS Digital Patients Registered](`r nhs_reg_data_url`) (`r nhs_reg_data_date`).
+1. Practice name, size and location data are obtained from
+[NHS Digital Patients Registered](`r age_data_url`) (`r age_data_date`).
 2. Data on availability and use of Patient Online services is from
 [NHS Digital](https://digital.nhs.uk/data-and-information/data-collections-and-data-sets/data-collections/pomi),
-latest data `r latest_pomi`.
-Unfortunately, data was unavailable for `r nrow(filter(full_data_sf, is.na(practice_name)))` of the surgeries listed in (1), and these are not included on the map.
-3. Conversion from postcode to map location is provided by the
-[ONS Postcode Directory](https://geoportal.statistics.gov.uk/datasets/ons-postcode-directory-august-2020),
-latest data August 2020.
-Small amounts of ‘jitter’ have been applied to locations in order to reduce overlap where two surgeries share a postcode.
+latest data `r latest_pomi_date`.
+Unfortunately, Patient Online data was unavailable for `r nrow(practices_excluded)` of the practices listed in (1), and these are not included on the map.
+3. Conversion from practice postcode to map location is provided by the [postcodes.io](https://postcodes.io) service.
+Small amounts of 'jitter' have been applied to locations in order to reduce overlap, where two or more practices share a postcode.
 4. The basemap is from 
-[OpenStreetMap](https://openstreetmap.org)
+[OpenStreetMap](https://openstreetmap.org),
 with CartoDB tiles.
